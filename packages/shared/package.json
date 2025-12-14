@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "@types/node-telegram-bot-api": "^0.64.13"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}

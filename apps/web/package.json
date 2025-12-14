@@ -1,0 +1,39 @@
+{
+  "name": "creator-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.1.0",
+    "@types/next-auth": "^3.13.0",
+    "axios": "^1.13.2",
+    "bcrypt": "^6.0.0",
+    "framer-motion": "^12.23.25",
+    "immutability-helper": "^3.1.1",
+    "js-cookie": "^3.0.5",
+    "lucide-react": "^0.556.0",
+    "next": "^14.2.33",
+    "next-auth": "^4.24.13",
+    "node-cron": "^4.2.1",
+    "react": "18.2.0",
+    "react-beautiful-dnd": "^13.1.1",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "18.2.0",
+    "react-icons": "^5.5.0",
+    "recharts": "^3.5.1",
+    "supports-color": "^10.2.2",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.7",
+    "autoprefixer": "^10.4.22",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "typescript": "5.9.3"
+  }
+}
