@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { BillingInterval } from "@prisma/client";
+type BillingInterval = "month" | "year";
 
 export default function ProductsPage() {
   const { data: session } = useSession();
