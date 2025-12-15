@@ -8,7 +8,9 @@ import { addUserToGroup, sendTelegramMessage, kickFromGroup } from "../../shared
 
 const prisma = new PrismaClient();
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const connection = new IORedis(process.env.REDIS_URL);
+let connection: IORedis | null = null;
+if (process.env.REDIS_URL) {
+  connection = new IORedis(process.env.REDIS_URL);
 
 /**
  * Ensures delayed jobs + retries work properly.
@@ -202,3 +204,5 @@ new Worker(
 );
 
 console.log("Worker running…");
+
+}

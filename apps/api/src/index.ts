@@ -28,20 +28,30 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 console.log("JWT_SECRET =", process.env.JWT_SECRET);
-
-// stripe webhook must use raw body and be defined BEFORE other body parsers or with explicit raw middleware
-app.post("/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookHandler);
-
-// CORS for frontend
-const allowedOrigins = process.env.CORS_ORIGINS?.split(",") ?? [];
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://clubmint-web.onrender.com",
+  "https://theclubmint.com",
+];
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true); // server-to-server
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.error("❌ Blocked by CORS:", origin);
+      callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );
 
+// stripe webhook must use raw body and be defined BEFORE other body parsers or with explicit raw middleware
+app.post("/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookHandler);
 
 // JSON for normal endpoints
 app.use(express.json());
