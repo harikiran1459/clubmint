@@ -200,7 +200,12 @@ if (!global.__bot_started__) {
 
   (async () => {
     try {
-      await bot.setWebHook(WEBHOOK_URL);
+      if (process.env.API_BASE_URL) {
+  await bot.setWebHook(
+    WEBHOOK_URL
+  );
+}
+
       console.log("🚀 Telegram webhook registered:", WEBHOOK_URL);
     } catch (err) {
       console.error("Failed to set webhook:", err);
@@ -248,7 +253,7 @@ async function sendGroupWelcomeMessage(groupId: bigint, tgUserId: bigint, userNa
   }
 }
 
-  console.log("🤖 Telegram bot running (polling)...");
+  console.log("🤖 Telegram bot running...");
 }
 
 export default bot;

@@ -19,8 +19,15 @@ if (process.env.REDIS_URL) {
   redis = new IORedis(process.env.REDIS_URL);
 }
 
-const grantQueue = new Queue("grant-access", { connection: redis });
-const revokeQueue = new Queue("revoke-access", { connection: redis });
+let grantQueue: Queue | null = null;
+let revokeQueue: Queue | null = null;
+
+if (process.env.REDIS_URL) {
+  const connection = new IORedis(process.env.REDIS_URL);
+
+  grantQueue = new Queue("grant-access", { connection });
+  revokeQueue = new Queue("revoke-access",{ connection });
+}
 
 /**
  * Map Stripe status to our Prisma subscription status

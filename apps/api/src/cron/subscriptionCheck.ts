@@ -10,8 +10,12 @@ if (process.env.REDIS_URL) {
   redis = new IORedis(process.env.REDIS_URL);
 }
 
+let revokeQueue: Queue | null = null;
+if (process.env.REDIS_URL) {
+  const connection = new IORedis(process.env.REDIS_URL);
 
-const revokeQueue = new Queue("revoke-access", { connection: redis });
+  revokeQueue = new Queue("revoke-access", { connection });
+}
 
 cron.schedule("*/10 * * * *", async () => {
   console.log("⏳ Running subscription warning & expiry cron...");
