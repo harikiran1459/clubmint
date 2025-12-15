@@ -33,7 +33,15 @@ console.log("JWT_SECRET =", process.env.JWT_SECRET);
 app.post("/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookHandler);
 
 // CORS for frontend
-app.use(cors({ origin: process.env.NEXT_PUBLIC_WEB_URL || "http://localhost:3000" }));
+const allowedOrigins = process.env.CORS_ORIGINS?.split(",") ?? [];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
+
 
 // JSON for normal endpoints
 app.use(express.json());
