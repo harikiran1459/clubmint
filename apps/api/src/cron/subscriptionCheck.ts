@@ -5,7 +5,11 @@ import IORedis from "ioredis";
 import { addUserToGroup, sendTelegramMessage, kickFromGroup } from "../../../../packages/shared/telegram";
 
 const prisma = new PrismaClient();
-const redis = new IORedis(process.env.REDIS_URL);
+let redis: IORedis | null = null;
+if (process.env.REDIS_URL) {
+  redis = new IORedis(process.env.REDIS_URL);
+}
+
 
 const revokeQueue = new Queue("revoke-access", { connection: redis });
 

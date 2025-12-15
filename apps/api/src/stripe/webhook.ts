@@ -14,7 +14,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2022-11-15",
 });
 
-const redis = new IORedis(process.env.REDIS_URL);
+let redis: IORedis | null = null;
+if (process.env.REDIS_URL) {
+  redis = new IORedis(process.env.REDIS_URL);
+}
 
 const grantQueue = new Queue("grant-access", { connection: redis });
 const revokeQueue = new Queue("revoke-access", { connection: redis });
