@@ -30,8 +30,10 @@
     "stripe": "^12.8.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^24.10.1",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.10.4",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.2"
