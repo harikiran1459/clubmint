@@ -42,6 +42,12 @@ enum BillingInterval {
   year
 }
 
+enum CreatorPlan {
+  free
+  starter
+  pro
+}
+
 
 
 // MODELS
@@ -67,9 +73,16 @@ model Creator {
   userId          String  @unique
   handle          String  @unique
   bio             String?
+
+  plan            CreatorPlan @default(free)
+  razorpaySubId   String?
+  commissionPct   Float        @default(15)
+  planStartedAt   DateTime?
+  planExpiresAt   DateTime?
+
   pricingPlan     Json?
   stripeAccountId String?
-  telegramUserId  String? // 👈 NEW — Telegram user who verified dashboard
+  telegramUserId  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -110,9 +123,15 @@ model Subscription {
   id                      String             @id @default(uuid())
   userId                  String
   productId               String
+
+  provider                String             // "stripe" | "razorpay"
+  providerSubscriptionId  String?
+  providerCustomerId      String?
+
   status                  SubscriptionStatus @default(active)
   stripeSubscriptionId    String?
   stripeCheckoutSessionId String?
+  plan                    CreatorPlan?
   currentPeriodEnd        DateTime?
   warned24h               Boolean            @default(false)
   warnedExpired           Boolean            @default(false)
@@ -121,7 +140,7 @@ model Subscription {
   updatedAt               DateTime           @updatedAt
 
   user           User            @relation(fields: [userId], references: [id])
-  product        Product         @relation(fields: [productId], references: [id])
+  product        Product?         @relation(fields: [productId], references: [id])
   accessControls AccessControl[]
 }
 

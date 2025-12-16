@@ -1,61 +1,136 @@
 "use client";
 
-import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
+import { CLUBMINT_PLANS } from "../../../lib/plans";
+import { useSession } from "next-auth/react";
+import PricingCards from "../../components/PricingCards";
 
-export default function PaymentsPage() {
-  const { data: session } = useSession();
-  const userId = (session?.user as any)?.userId;
 
-  const [payments, setPayments] = useState<any[]>([]);
+
+
+export default function BillingPage() {
+  const [creator, setCreator] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { data: session, status } = useSession();
+  const plans = [
+  {
+    key: "free",
+    name: "Free",
+    price: "₹0",
+    subtitle: "For getting started",
+    commission: "15% commission",
+    features: [
+      "1 paid product",
+      "Basic subscriber management",
+      "Manual Telegram access",
+      "Community support",
+    ],
+  },
+  {
+    key: "starter",
+    name: "Starter",
+    price: "₹1,499",
+    subtitle: "per month",
+    commission: "5% commission",
+    highlighted: true,
+    features: [
+      "Up to 5 products",
+      "Telegram auto-add & auto-remove",
+      "Custom creator pages",
+      "Analytics dashboard",
+    ],
+  },
+  {
+    key: "pro",
+    name: "Pro",
+    price: "₹2,499",
+    subtitle: "per month",
+    commission: "3% commission",
+    features: [
+      "Unlimited products",
+      "Priority Telegram automation",
+      "Advanced analytics",
+      "Early access to Discord & WhatsApp",
+    ],
+  },
+];
+
+
 
   useEffect(() => {
-    if (!userId) return;
+    if (status !== "authenticated") return;
 
-    (async () => {
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/payments/by-user/${userId}`
-        );
-
-        const json = await res.json();
-        setPayments(json || []);
-      } catch (err) {
-        console.error("Payment fetch error:", err);
-      } finally {
-        setLoading(false);
+  async function loadBilling() {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/billing/me`,
+      {
+        headers: {
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
       }
-    })();
-  }, [userId]);
+    );
+
+    const json = await res.json();
+    setCreator(json.creator);
+    setLoading(false);
+  }
+
+  loadBilling();
+}, [status]);
+
+  async function upgrade(plan: string) {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/billing/upgrade`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.accessToken}`,
+      },
+      body: JSON.stringify({ plan }),
+    }
+  );
+
+  const data = await res.json();
+  console.log("UPGRADE RESPONSE:", data);
+
+  if (!data.subscriptionId) {
+    alert("Subscription creation failed");
+    return;
+  }
+
+  const options = {
+    key: data.key,
+    subscription_id: data.subscriptionId,
+    name: "ClubMint",
+    description: "Creator subscription",
+    theme: { color: "#7c3aed" },
+    handler: function () {
+      window.location.reload();
+    },
+  };
+
+  const rzp = new (window as any).Razorpay(options);
+  rzp.open();
+}
+
+
+  if (loading) return <p>Loading billing details...</p>;
+  if (!creator) {
+  return (
+    <div className="p-10 text-center text-gray-400">
+      Loading billing details...
+    </div>
+  );
+}
+
 
   return (
-    <div>
-      <h1 className="dashboard-title">Payments</h1>
+    <PricingCards
+  plans={plans}
+  currentPlan={creator.plan}
+  onAction={upgrade}
+/>
 
-      {loading ? (
-        <div className="no-data">Loading payments…</div>
-      ) : payments.length === 0 ? (
-        <div className="no-data">No payments recorded yet.</div>
-      ) : (
-        <div className="table">
-          <div className="table-header">
-            <span>Amount</span>
-            <span>User</span>
-            <span>Status</span>
-            <span>Date</span>
-          </div>
-
-          {payments.map((p: any) => (
-            <div className="table-row" key={p.id}>
-              <span>${(p.amount / 100).toFixed(2)}</span>
-              <span>{p.userEmail}</span>
-              <span className="badge">{p.status}</span>
-              <span>{new Date(p.createdAt).toLocaleDateString()}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }

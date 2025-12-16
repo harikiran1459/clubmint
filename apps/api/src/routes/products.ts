@@ -2,6 +2,10 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { requireAuth } from "../middleware/auth";
 import Stripe from "stripe";
+import { CLUBMINT_PLANS } from "../config/plans";
+import { PLAN_LIMITS } from "../config/planLimits";
+
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2022-11-15",
 });
@@ -55,8 +59,10 @@ router.post("/", requireAuth, async (req, res) => {
     }
 
     const creator = await prisma.creator.findUnique({
-      where: { userId },
-    });
+  where: { userId },
+  include: { products: true },
+});
+
 
     if (!creator) {
       return res.status(400).json({
@@ -64,6 +70,19 @@ router.post("/", requireAuth, async (req, res) => {
         error: "Creator not found",
       });
     }
+    const planConfig = CLUBMINT_PLANS[creator.plan];
+const maxProducts = planConfig.features.products;
+
+if (
+  Number.isFinite(maxProducts) &&
+  creator.products.length >= maxProducts
+) {
+  return res.status(403).json({
+    ok: false,
+    error: `Your ${planConfig.name} plan allows only ${maxProducts} products. Upgrade to add more.`,
+  });
+}
+
 
     const product = await prisma.product.create({
       data: {

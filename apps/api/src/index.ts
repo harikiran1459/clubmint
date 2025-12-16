@@ -20,6 +20,8 @@ import settingsRoutes from "./routes/settings";
 import pagesRoutes from "./routes/pages";
 import telegramWebhookRouter from "./routes/telegram-webhook";
 import uploadRoutes from "./routes/upload";
+import billingRoutes from "./routes/billing";
+import razorpayWebhookRoutes from "./routes/razorpay-webhook";
 
 
 
@@ -63,6 +65,8 @@ app.use("/creator", (req, res, next) => {
 }, creatorRoutes);
 app.use("/creators", creatorRoutes);
 app.use("/dashboard", dashboardRoutes);
+app.use("/billing", billingRoutes);
+app.use("/webhooks", razorpayWebhookRoutes);
 app.use("/pages", pagesRoutes);
 app.use("/subscriptions", subscriptionRoutes);
 app.use("/products", productRoutes);

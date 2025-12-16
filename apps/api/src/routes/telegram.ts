@@ -3,6 +3,8 @@ import { PrismaClient } from "@prisma/client";
 import { handleTelegramUpdate } from "../integrations/telegram";
 import fetch from "node-fetch";
 
+import { CLUBMINT_PLANS } from "../config/plans";
+
 const prisma = new PrismaClient();
 const router = express.Router();
 
@@ -194,6 +196,28 @@ router.post("/manual-link", async (req, res) => {
 
     if (!creatorId || !chatIdOrUsername)
       return res.status(400).json({ ok: false, error: "Missing fields" });
+    const creator = await prisma.creator.findUnique({
+  where: { id: creatorId },
+  include: { telegramGroups: true },
+});
+
+if (!creator) {
+  return res.status(404).json({ ok: false, error: "Creator not found" });
+}
+
+const planConfig = CLUBMINT_PLANS[creator.plan];
+const maxGroups = planConfig.features.telegramGroups;
+
+if (
+  Number.isFinite(maxGroups) &&
+  creator.telegramGroups.length >= maxGroups
+) {
+  return res.status(403).json({
+    ok: false,
+    error: `Your ${planConfig.name} plan allows only ${maxGroups} Telegram groups. Upgrade to add more.`,
+  });
+}
+
 
     const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -250,6 +274,34 @@ router.post("/map-groups", async (req, res) => {
   }
 
   try {
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      include: {
+        creator: true,
+        telegramGroups: true,
+      },
+    });
+
+    if (!product) {
+      return res.status(404).json({ ok: false, error: "Product not found" });
+    }
+
+    const planConfig = CLUBMINT_PLANS[product.creator.plan];
+
+    // 🔒 AUTO-ADD LIMIT ENFORCEMENT
+    const maxAutoAdd = 1;
+
+// Free plan → only 1 group per product
+if (
+  product.creator.plan === "free" &&
+  product.telegramGroups.length >= maxAutoAdd
+) {
+  return res.status(403).json({
+    ok: false,
+    error: "Free plan allows only 1 Telegram auto-add per product. Upgrade to add more.",
+  });
+}
+
     const updated = await prisma.product.update({
       where: { id: productId },
       data: {
@@ -267,6 +319,7 @@ router.post("/map-groups", async (req, res) => {
     res.status(500).json({ ok: false });
   }
 });
+
 
 router.get("/creator/:creatorId/group-mapping", async (req, res) => {
   const creatorId = req.params.creatorId;
