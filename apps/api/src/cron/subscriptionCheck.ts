@@ -3,6 +3,8 @@ import { PrismaClient } from "@prisma/client";
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 import { addUserToGroup, sendTelegramMessage, kickFromGroup } from "../../../../packages/shared/telegram";
+import { createAlert } from "../utils/createAlert";
+
 
 const prisma = new PrismaClient();
 let redis: IORedis | null = null;

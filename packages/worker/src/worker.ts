@@ -179,6 +179,7 @@ new Worker(
         console.log(`🚫 Kicked ${subscriberTelegramId} from ${group.tgGroupId}`);
       } catch (err) {
         console.error("Kick failed:", err);
+        
       }
     }
 

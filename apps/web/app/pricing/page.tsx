@@ -1,5 +1,3 @@
-"use client";
-
 import PricingCards from "../components/PricingCards";
 import Link from "next/link";
 

@@ -2,50 +2,55 @@
 
 import { useState } from "react";
 
-export default function ImageUploader({ value, onChange }: any) {
-  const [preview, setPreview] = useState(value || null);
-  const [uploading, setUploading] = useState(false);
+type Props = {
+  label?: string;
+  currentUrl?: string;
+  onChange: (url: string) => void;
+};
 
-  async function handleFile(e: any) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+export default function ImageUploader({ label, currentUrl, onChange }: Props) {
+  const [preview, setPreview] = useState(currentUrl);
 
-    setUploading(true);
+  async function upload(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
 
-    const form = new FormData();
-    form.append("file", file);
-
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload`, {
-      method: "POST",
-      body: form,
-    });
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/upload`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
 
     const json = await res.json();
-    setUploading(false);
 
     if (json.ok) {
       setPreview(json.url);
-      onChange(json.url);
+      onChange(json.url); // ✅ now guaranteed
     }
   }
 
   return (
-    <div className="w-full">
-      {preview ? (
+    <div>
+      {label && <div className="muted">{label}</div>}
+
+      {preview && (
         <img
-          src={`${process.env.NEXT_PUBLIC_API_URL}${preview}`}
-          className="rounded-lg w-full object-cover mb-2"
+          src={preview}
+          className="w-24 h-24 rounded-full object-cover mb-3"
         />
-      ) : (
-        <div className="w-full h-40 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 mb-2">
-          No Image
-        </div>
       )}
 
-      <label className="cursor-pointer px-4 py-2 rounded bg-purple-600 text-white inline-block">
-        {uploading ? "Uploading..." : "Upload Image"}
-        <input type="file" className="hidden" onChange={handleFile} />
-      </label>
+      <input
+        type="file"
+        accept="image/*"
+        onChange={(e) => {
+          if (e.target.files?.[0]) {
+            upload(e.target.files[0]);
+          }
+        }}
+      />
     </div>
   );
 }

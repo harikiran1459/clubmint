@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -50,5 +51,39 @@ router.get("/by-user/:userId", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch user subscriptions" });
   }
 });
+
+router.get("/creator", requireAuth, async (req, res) => {
+  const creator = await prisma.creator.findUnique({
+    where: { userId: req.userId },
+  });
+
+  if (!creator) {
+    return res.status(404).json({ ok: false });
+  }
+
+  const subs = await prisma.subscription.findMany({
+    where: {
+      product: {
+        creatorId: creator.id,
+      },
+    },
+    include: {
+      user: {
+        select: { email: true },
+      },
+      product: {
+        select: { title: true },
+      },
+      accessControls: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  res.json({
+    ok: true,
+    subscriptions: subs,
+  });
+});
+
 
 export default router;

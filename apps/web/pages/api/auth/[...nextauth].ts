@@ -89,6 +89,7 @@ export default NextAuth({
         token.creatorId = user.creatorId;
         token.creatorHandle = (user as any).creatorHandle;
         token.accessToken = (user as any).accessToken;
+        token.image = user.image;
       }
       return token;
     },
@@ -96,6 +97,7 @@ export default NextAuth({
     // Expose JWT fields into session object
     async session({ session, token }) {
       if (session.user) {
+        session.user.image = token.image as string;
         session.user.userId = token.userId;
         session.user.creatorId = token.creatorId;
         session.user.creatorHandle = token.creatorHandle;

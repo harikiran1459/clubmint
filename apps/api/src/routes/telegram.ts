@@ -2,6 +2,7 @@ import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { handleTelegramUpdate } from "../integrations/telegram";
 import fetch from "node-fetch";
+import { requireAuth } from "../middleware/auth";
 
 import { CLUBMINT_PLANS } from "../config/plans";
 
@@ -319,6 +320,19 @@ if (
     res.status(500).json({ ok: false });
   }
 });
+
+router.get("/activity/:creatorId", requireAuth, async (req, res) => {
+  const creatorId = req.params.creatorId;
+
+  const logs = await prisma.telegramActivityLog.findMany({
+    where: { creatorId },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+
+  res.json({ ok: true, logs });
+});
+
 
 
 router.get("/creator/:creatorId/group-mapping", async (req, res) => {

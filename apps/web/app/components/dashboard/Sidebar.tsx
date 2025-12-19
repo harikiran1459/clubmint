@@ -9,9 +9,10 @@ export default function Sidebar() {
     { name: "Dashboard", href: "/dashboard" },
     { name: "Pages", href: "/dashboard/pages" },
     { name: "Integrations", href: "/dashboard/integrations" },
+    { name: "Payouts", href: "/dashboard/payouts" },
     { name: "Subscribers", href: "/dashboard/subscribers" },
     { name: "Products", href: "/dashboard/products" },
-    { name: "Payments", href: "/dashboard/payments" },
+    { name: "Pricng", href: "/dashboard/payments" },
     { name: "Settings", href: "/dashboard/settings" },
   ];
 

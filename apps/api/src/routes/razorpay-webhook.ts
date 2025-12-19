@@ -2,6 +2,8 @@ import { Router } from "express";
 import crypto from "crypto";
 import { PrismaClient } from "@prisma/client";
 import { CLUBMINT_PLANS } from "../config/plans";
+import { createAlert } from "../utils/createAlert";
+
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -62,6 +64,27 @@ router.post("/razorpay", async (req, res) => {
     });
   }
 
+  if (event === "subscription.payment_failed") {
+  const sub = payload.subscription.entity;
+
+  const creator = await prisma.creator.findFirst({
+    where: { razorpaySubId: sub.id },
+  });
+
+  if (creator) {
+    await createAlert(
+      creator.id,
+      "payment_failed",
+      "Subscription payment failed. Access may be revoked if not resolved.",
+      {
+        razorpaySubscriptionId: sub.id,
+        amount: payload.payment?.entity?.amount,
+      }
+    );
+  }
+}
+
+
   /* -------------------------------------------
      SUBSCRIPTION CANCELLED / EXPIRED
   ------------------------------------------- */
@@ -71,6 +94,21 @@ router.post("/razorpay", async (req, res) => {
     event === "subscription.halted"
   ) {
     const sub = payload.subscription.entity;
+    const creator = await prisma.creator.findFirst({
+  where: { razorpaySubId: sub.id },
+});
+
+if (creator) {
+  await createAlert(
+    creator.id,
+    "subscription_cancelled",
+    "Your ClubMint subscription has been cancelled.",
+    {
+      razorpaySubscriptionId: sub.id,
+      event,
+    }
+  );
+}
 
     await prisma.creator.updateMany({
       where: { razorpaySubId: sub.id },
@@ -82,6 +120,22 @@ router.post("/razorpay", async (req, res) => {
       },
     });
   }
+
+  if (event === "payment.captured") {
+  const payment = payload.payment.entity;
+
+  await prisma.payment.updateMany({
+    where: {
+      razorpayOrderId: payment.order_id,
+    },
+    data: {
+      razorpayPaymentId: payment.id,
+      status: "paid",
+    },
+  });
+}
+
+
 
   res.sendStatus(200);
 });

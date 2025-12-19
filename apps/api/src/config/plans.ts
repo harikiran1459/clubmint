@@ -7,8 +7,9 @@ export const CLUBMINT_PLANS = {
     features: {
       telegramGroups: 1,
       products: 1,
-      analytics: false,
-      customDomain: false,
+      autoAdd: true,
+      analytics: true,
+      customDomain: true,
       prioritySupport: false,
     },
   },
@@ -21,6 +22,7 @@ export const CLUBMINT_PLANS = {
     features: {
       telegramGroups: 5,
       products: 5,
+      autoAdd: true,
       analytics: true,
       customDomain: true,
       prioritySupport: false,
@@ -35,6 +37,7 @@ export const CLUBMINT_PLANS = {
     features: {
       telegramGroups: Infinity,
       products: Infinity,
+      autoAdd: true,
       analytics: true,
       customDomain: true,
       prioritySupport: true,

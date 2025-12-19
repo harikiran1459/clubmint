@@ -12,7 +12,7 @@ import creatorRoutes from "./routes/creator";
 import authRoutes from "./routes/auth";
 import dashboardRoutes from "./routes/dashboard";
 import publicRoutes from "./routes/public";
-import statsRoutes from "./routes/stats";
+import statsRouter from "./routes/stats";
 import subscriptionRoutes from "./routes/subscriptions";
 import productRoutes from "./routes/products";
 //import paymentRoutes from "./routes/payments";
@@ -21,6 +21,7 @@ import pagesRoutes from "./routes/pages";
 import telegramWebhookRouter from "./routes/telegram-webhook";
 import uploadRoutes from "./routes/upload";
 import billingRoutes from "./routes/billing";
+import payoutsroutes from "./routes/payouts";
 import razorpayWebhookRoutes from "./routes/razorpay-webhook";
 
 
@@ -66,13 +67,14 @@ app.use("/creator", (req, res, next) => {
 app.use("/creators", creatorRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/billing", billingRoutes);
+app.use("/payouts", payoutsroutes);
 app.use("/webhooks", razorpayWebhookRoutes);
 app.use("/pages", pagesRoutes);
 app.use("/subscriptions", subscriptionRoutes);
 app.use("/products", productRoutes);
 //app.use("/payments", paymentRoutes);
 app.use("/settings", settingsRoutes);
-app.use(statsRoutes);
+app.use("/stats", statsRouter);
 app.use("/",publicRoutes);
 app.use(uploadRoutes);
 // static file hosting
@@ -81,7 +83,7 @@ app.use("/telegram", telegramRoutes);
 app.use("/", telegramWebhookRouter);
 
 // mount checkout router
-app.use("/", checkoutRouter);
+app.use("/checkout", checkoutRouter);
 
 // health
 app.get("/health", (req, res) => res.json({ ok: true }));

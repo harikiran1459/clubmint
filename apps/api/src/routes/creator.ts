@@ -38,8 +38,9 @@ router.get("/by-user/:userId", async (req, res) => {
     });
 
     return res.json({
-      ok: !!creator,
-      creator: creator || null,
+      ok: true,
+  creator,
+  userId,
     });
   } catch (err: any) {
     console.error("Creator by-user error:", err);

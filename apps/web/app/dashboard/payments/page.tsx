@@ -1,4 +1,5 @@
 "use client";
+// apps/web/app/dashboard/payments/page.tsx
 
 import { useEffect, useState } from "react";
 import { CLUBMINT_PLANS } from "../../../lib/plans";

@@ -1,114 +1,253 @@
+// apps/api/src/routes/stats.ts
+
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { requireAuth } from "../middleware/auth";
 
-const prisma = new PrismaClient();
 const router = Router();
+const prisma = new PrismaClient();
 
-router.get("/dashboard/stats/:creatorId", requireAuth, async (req, res) => {
+/* ------------------------------------------------
+   GET /stats/creator/overview
+------------------------------------------------- */
+router.get("/creator/overview", requireAuth, async (req, res) => {
   try {
-    const { creatorId } = req.params;
+    const userId = req.userId!;
 
-    // ---------------------------------------------------
-    // 1. Get all products owned by this creator
-    // ---------------------------------------------------
-    const products = await prisma.product.findMany({
-      where: { creatorId },
-      select: { id: true }
+    const creator = await prisma.creator.findUnique({
+      where: { userId },
+      include: {
+        products: true,
+      },
     });
 
-    const productIds = products.map(p => p.id);
-
-    // No products → return empty stats
-    if (productIds.length === 0) {
-      return res.json({
-        ok: true,
-        subscriberCount: 0,
-        monthlyRevenue: 0,
-        revenueGraph: [],
-        subscriberGraph: [],
-        telegramLinked: false
-      });
+    if (!creator) {
+      return res.status(404).json({ error: "Creator not found" });
     }
 
-    // ---------------------------------------------------
-    // 2. Count subscribers to these products
-    // ---------------------------------------------------
-    const subscriberCount = await prisma.subscription.count({
+    /* -----------------------------
+       SUBSCRIPTIONS
+    ------------------------------ */
+    const subscriptions = await prisma.subscription.findMany({
       where: {
-        productId: { in: productIds },
-        status: "active"
-      }
-    });
-
-    // ---------------------------------------------------
-    // 3. Revenue does NOT exist → simulate revenue using priceCents
-    // ---------------------------------------------------
-    const activeSubs = await prisma.subscription.findMany({
-      where: {
-        productId: { in: productIds },
-        status: "active"
+        product: { creatorId: creator.id },
+        status: "active",
       },
       include: {
-        product: true
-      }
-    });
-
-    const monthlyRevenue = activeSubs.reduce((sum, sub) => {
-      return sum + sub.product.priceCents;
-    }, 0);
-
-    // ---------------------------------------------------
-    // 4. Subscriber Graph (last 30 days)
-    // ---------------------------------------------------
-    const subsLast30 = await prisma.subscription.findMany({
-      where: {
-        productId: { in: productIds },
-        createdAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-        }
+        product: true,
       },
-      orderBy: { createdAt: "asc" },
-      select: { createdAt: true }
     });
 
-    const subscriberMap: any = {};
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - 7);
 
-    subsLast30.forEach(s => {
-      const date = s.createdAt.toISOString().slice(0, 10);
-      subscriberMap[date] = (subscriberMap[date] || 0) + 1;
+    let grossRevenue = 0;
+    let activeSubs = subscriptions.length;
+
+    const productRevenueMap: Record<string, number> = {};
+
+    for (const sub of subscriptions) {
+      const price = sub.product.priceCents / 100;
+      grossRevenue += price;
+
+      productRevenueMap[sub.product.title] =
+        (productRevenueMap[sub.product.title] || 0) + price;
+    }
+
+    const commissionPaid =
+      (grossRevenue * creator.commissionPct) / 100;
+
+    const netRevenue = grossRevenue - commissionPaid;
+
+    const topProductEntry = Object.entries(productRevenueMap).sort(
+      (a, b) => b[1] - a[1]
+    )[0];
+
+    /* -----------------------------
+       CHURN & GROWTH
+    ------------------------------ */
+    const newSubsThisWeek = await prisma.subscription.count({
+      where: {
+        product: { creatorId: creator.id },
+        createdAt: { gte: startOfWeek },
+      },
     });
 
-    const subscriberGraph = Object.entries(subscriberMap).map(([date, count]) => ({
-      date,
-      count
-    }));
-
-    // ---------------------------------------------------
-    // 5. Telegram Linked (via creator.telegramGroups)
-    // ---------------------------------------------------
-    const telegramGroups = await prisma.telegramGroup.findMany({
-      where: { creatorId }
+    const churnedThisMonth = await prisma.subscription.count({
+      where: {
+        product: { creatorId: creator.id },
+        status: "canceled",
+        updatedAt: { gte: startOfMonth },
+      },
     });
 
-    const telegramLinked = telegramGroups.length > 0;
+    /* -----------------------------
+       TELEGRAM AUTOMATION
+    ------------------------------ */
+    const pendingAccess = await prisma.accessControl.count({
+      where: {
+        subscription: {
+          product: { creatorId: creator.id },
+        },
+        status: "pending",
+      },
+    });
 
-    // ---------------------------------------------------
-    // RETURN FINAL STATS
-    // ---------------------------------------------------
+    const telegramGroups = await prisma.telegramGroup.count({
+      where: {
+        creatorId: creator.id,
+        isConnected: true,
+      },
+    });
+
+    const telegramStatus =
+      telegramGroups === 0
+        ? "error"
+        : pendingAccess > 0
+        ? "warning"
+        : "ok";
+
+    /* -----------------------------
+       RESPONSE
+    ------------------------------ */
     return res.json({
-      ok: true,
-      subscriberCount,
-      monthlyRevenue,
-      revenueGraph: [], // skip, no payment model
-      subscriberGraph,
-      telegramLinked
+      revenue: {
+        netThisMonth: Math.round(netRevenue),
+        mrr: Math.round(grossRevenue),
+        commissionPaid: Math.round(commissionPaid),
+      },
+      subscribers: {
+        active: activeSubs,
+        newThisWeek: newSubsThisWeek,
+        churnedThisMonth,
+      },
+      products: {
+        topProduct: topProductEntry
+          ? {
+              name: topProductEntry[0],
+              revenue: Math.round(topProductEntry[1]),
+            }
+          : null,
+      },
+      automation: {
+        telegramStatus,
+        pendingActions: pendingAccess,
+      },
     });
-
-  } catch (err: any) {
-    console.error("Stats API error:", err);
-    return res.status(500).json({ ok: false, error: err.message });
+  } catch (err) {
+    console.error("Creator overview stats error:", err);
+    return res.status(500).json({ error: "Failed to load stats" });
   }
 });
+
+
+// GET /stats/creator/subscribers
+router.get("/creator/subscribers", requireAuth, async (req, res) => {
+  const creator = await prisma.creator.findUnique({
+    where: { userId: req.userId },
+  });
+
+  if (!creator) {
+    return res.status(404).json({ error: "Creator not found" });
+  }
+
+  const subs = await prisma.subscription.findMany({
+    where: {
+      product: {
+        creatorId: creator.id,
+      },
+    },
+    include: {
+      user: {
+        select: {
+          email: true,
+          createdAt: true,
+        },
+      },
+      product: {
+        select: {
+          title: true,
+          priceCents: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  res.json({
+    ok: true,
+    subscribers: subs.map((s) => ({
+      id: s.id,
+      email: s.user.email,
+      product: s.product.title,
+      amount: s.product.priceCents / 100,
+      status: s.status,
+      joinedAt: s.createdAt,
+    })),
+  });
+});
+
+
+// GET /stats/creator/automation-health
+router.get("/creator/automation-health", requireAuth, async (req, res) => {
+  const creator = await prisma.creator.findUnique({
+    where: { userId: req.userId },
+  });
+
+  if (!creator) {
+    return res.status(404).json({ error: "Creator not found" });
+  }
+
+  const logs = await prisma.telegramActivityLog.findMany({
+    where: { creatorId: creator.id },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+
+  const failed = logs.filter(
+    (l) => l.event.includes("fail") || l.reason
+  ).length;
+
+  res.json({
+    ok: true,
+    metrics: {
+      totalActions: logs.length,
+      failures: failed,
+      healthy: failed === 0,
+      lastEventAt: logs[0]?.createdAt ?? null,
+    },
+  });
+});
+
+router.get("/creator/earnings", requireAuth, async (req, res) => {
+  const creator = await prisma.creator.findUnique({
+    where: { userId: req.userId },
+  });
+
+  if (!creator) {
+    return res.status(404).json({ error: "Creator not found" });
+  }
+
+  const payments = await prisma.payment.findMany({
+    where: {
+      creatorId: creator.id,
+      status: "paid",
+    },
+  });
+
+  const totalRevenue = payments.reduce((s, p) => s + p.amount, 0);
+  const totalCommission = payments.reduce((s, p) => s + p.commission, 0);
+  const netEarnings = payments.reduce((s, p) => s + p.creatorAmount, 0);
+
+  res.json({
+    totalRevenue,
+    totalCommission,
+    netEarnings,
+    transactions: payments.length,
+  });
+});
+
 
 export default router;

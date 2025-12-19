@@ -4,6 +4,8 @@ import { PrismaClient } from "@prisma/client";
 import fetch from "node-fetch";
 import { logActivity } from "../utils/logActivity";
 import { handleChatMemberUpdate } from "./telegramChatMember";
+import { createAlert } from "../utils/createAlert";
+
 
 const prisma = new PrismaClient();
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -53,10 +55,24 @@ async function addUserToCreatorGroups(creatorId: string, tgUserId: bigint) {
         reason: "verification_success",
       });
     } catch (err) {
-      console.error("Group add error:", err);
+  console.error("Group add error:", err);
+
+  await createAlert(
+    creatorId,
+    "telegram_auto_add_failed",
+    "Failed to auto-add a subscriber to a Telegram group.",
+    {
+      groupId: g.id,
+      tgGroupId: g.tgGroupId.toString(),
+      tgUserId: tgUserId.toString(),
+      error: String(err),
     }
+  );
+}
+
   }
 }
+
 
 // ------------------------------------------------------------------
 // MAIN UPDATE HANDLER (MESSAGE TEXTS)
@@ -168,7 +184,20 @@ export async function handleTelegramUpdate(update: any) {
   ok: boolean;
   result?: { id: number };
 };
-    if (!joined.ok) return sendMessage(chatId, "❌ Bot failed to join the group.");
+    if (!joined.ok) {
+  await createAlert(
+    creator.id,
+    "telegram_group_join_failed",
+    "Bot failed to join a Telegram group using invite link.",
+    {
+      inviteLink: text,
+      response: joined,
+    }
+  );
+
+  return sendMessage(chatId, "❌ Bot failed to join the group.");
+}
+
 
     await prisma.telegramGroup.create({
       data: {
@@ -187,6 +216,7 @@ export async function handleTelegramUpdate(update: any) {
     "👋 Send a 6-digit verification code to connect Telegram."
   );
 }
+
 
 // ------------------------------------------------------------------
 // BOT INSTANCE

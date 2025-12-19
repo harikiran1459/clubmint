@@ -4,83 +4,51 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
 export default function SubscribersPage() {
-  const { data: session } = useSession();
-  const userId = (session?.user as any)?.userId;
-
-  const [creatorId, setCreatorId] = useState<string | null>(null);
+  const { data: session, status } = useSession();
   const [subs, setSubs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  // Get creatorId
   useEffect(() => {
-    if (!userId) return;
+    if (status !== "authenticated") return;
 
-    (async () => {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/creators/by-user/${userId}`
-      );
-      const json = await res.json();
-      if (json.ok && json.creator) setCreatorId(json.creator.id);
-    })();
-  }, [userId]);
-
-  // Get subscribers
-  useEffect(() => {
-    if (!creatorId) return;
-
-    (async () => {
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/subscriptions/by-creator/${creatorId}`
-        );
-
-        if (!res.ok) {
-          console.error("Bad response", res.status);
-          setSubs([]);
-          return;
-        }
-
-        const json = await res.json();
-        setSubs(json || []);
-      } catch (err) {
-        console.error("Subscriber fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [creatorId]);
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/stats/creator/subscribers`, {
+      headers: {
+        Authorization: `Bearer ${session?.accessToken}`,
+      },
+    })
+      .then((r) => r.json())
+      .then((d) => setSubs(d.subscribers || []));
+  }, [status]);
 
   return (
-    <div>
-      <h1 className="dashboard-title">Subscribers</h1>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Subscribers</h1>
 
-      {loading ? (
-        <div className="no-data">Loading subscribers…</div>
-      ) : subs.length === 0 ? (
-        <div className="no-data">No subscribers found.</div>
-      ) : (
-        <div className="table">
-          <div className="table-header">
-            <span>User</span>
-            <span>Product</span>
-            <span>Status</span>
-            <span>Next Billing</span>
-          </div>
-
-          {subs.map((s: any) => (
-            <div className="table-row" key={s.id}>
-              <span>{s.user?.email}</span>
-              <span>{s.product?.name}</span>
-              <span className="badge">{s.status}</span>
-              <span>
-                {s.currentPeriodEnd
-                  ? new Date(s.currentPeriodEnd).toLocaleDateString()
-                  : "-"}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="overflow-hidden rounded-xl border border-white/10">
+        <table className="w-full text-sm">
+          <thead className="bg-white/5 text-white/60">
+            <tr>
+              <th className="px-4 py-3 text-left">Email</th>
+              <th className="px-4 py-3 text-left">Product</th>
+              <th className="px-4 py-3 text-left">Amount</th>
+              <th className="px-4 py-3 text-left">Status</th>
+              <th className="px-4 py-3 text-left">Joined</th>
+            </tr>
+          </thead>
+          <tbody>
+            {subs.map((s) => (
+              <tr key={s.id} className="border-t border-white/10">
+                <td className="px-4 py-3">{s.email}</td>
+                <td className="px-4 py-3">{s.product}</td>
+                <td className="px-4 py-3">₹{s.amount}</td>
+                <td className="px-4 py-3 capitalize">{s.status}</td>
+                <td className="px-4 py-3 text-white/60">
+                  {new Date(s.joinedAt).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
