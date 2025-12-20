@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { CLUBMINT_PLANS } from "../../../lib/plans";
 
 export default function PricingCards({
@@ -10,53 +11,84 @@ export default function PricingCards({
   onUpgrade?: (plan: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {Object.entries(CLUBMINT_PLANS).map(([key, plan]) => {
-        const isCurrent = currentPlan === key;
+    <section className="pricing">
+      <div className="container">
+        {/* Header */}
+        <div className="pricing-head">
+          <span className="pricing-eyebrow">Simple pricing</span>
+          <h2 className="pricing-title">
+            Start free. <br />
+            Upgrade when you grow.
+          </h2>
+          <p className="pricing-sub">
+            No hidden fees. No contracts. Cancel anytime.
+          </p>
+        </div>
 
-        return (
-          <div
-            key={key}
-            className={`relative rounded-2xl p-6 border backdrop-blur-xl
-              ${
-                isCurrent
-                  ? "border-purple-500 bg-purple-500/10"
-                  : "border-white/10 bg-white/5 hover:bg-white/10"
-              }
-            `}
-          >
-            {isCurrent && (
-              <span className="absolute top-4 right-4 text-xs px-3 py-1 rounded-full bg-purple-600">
-                Current
-              </span>
-            )}
+        {/* Cards */}
+        <div className="pricing-grid">
+          {Object.entries(CLUBMINT_PLANS).map(([key, plan], idx) => {
+            const isCurrent = currentPlan === key;
+            const isPopular = key === "pro"; // mark your best plan
 
-            <h3 className="text-xl font-semibold">{plan.name}</h3>
-
-            <p className="mt-4 text-3xl font-bold">
-              ₹{plan.price}
-              {plan.price > 0 && (
-                <span className="text-sm font-normal opacity-70"> / month</span>
-              )}
-            </p>
-
-            <ul className="mt-6 space-y-2 text-sm opacity-80">
-              {plan.features.map((f) => (
-                <li key={f}>• {f}</li>
-              ))}
-            </ul>
-
-            {onUpgrade && !isCurrent && (
-              <button
-                onClick={() => onUpgrade(key)}
-                className="mt-6 w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-700 transition"
+            return (
+              <motion.div
+                key={key}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: idx * 0.08 }}
+                className={`pricing-card ${isPopular ? "popular" : ""}`}
               >
-                Upgrade
-              </button>
-            )}
-          </div>
-        );
-      })}
-    </div>
+                {isPopular && (
+                  <div className="pricing-badge">Most popular</div>
+                )}
+
+                {isCurrent && (
+                  <div className="pricing-current">Current plan</div>
+                )}
+
+                <h3 className="pricing-plan">{plan.name}</h3>
+
+                <div className="pricing-price">
+                  {plan.price === 0 ? (
+                    <span className="pricing-free">Free</span>
+                  ) : (
+                    <>
+                      <span className="currency">₹</span>
+                      {plan.price}
+                      <span className="per">/ month</span>
+                    </>
+                  )}
+                </div>
+
+                <ul className="pricing-features">
+                  {plan.features.map((f) => (
+                    <li key={f}>✓ {f}</li>
+                  ))}
+                </ul>
+
+                {onUpgrade && !isCurrent && (
+                  <button
+                    onClick={() => onUpgrade(key)}
+                    className={`pricing-cta ${
+                      isPopular ? "primary" : "secondary"
+                    }`}
+                  >
+                    Get started
+                  </button>
+                )}
+
+                {isCurrent && (
+                  <div className="pricing-muted">
+                    You’re already on this plan
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }

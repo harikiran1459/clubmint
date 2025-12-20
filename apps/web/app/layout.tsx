@@ -4,6 +4,10 @@ import AuthProvider from "./providers/AuthProvider";
 export const metadata = {
   title: "ClubMint",
   description: "Monetize your community",
+  icons: {
+    icon: "./favicon.ico",
+    apple: "./apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({ children }) {

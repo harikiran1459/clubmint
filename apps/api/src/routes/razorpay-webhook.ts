@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { PrismaClient } from "@prisma/client";
 import { CLUBMINT_PLANS } from "../config/plans";
 import { createAlert } from "../utils/createAlert";
+import { strictLimiter } from "../middleware/rateLimit";
 
 
 const router = Router();
@@ -36,7 +37,7 @@ async function createAccessForProductSubscription(subscriptionId: string) {
   }
 }
 
-router.post("/razorpay", async (req, res) => {
+router.post("/razorpay", strictLimiter, async (req, res) => {
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET!;
   const body = JSON.stringify(req.body);
 

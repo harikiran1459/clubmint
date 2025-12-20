@@ -18,6 +18,22 @@ export default function PricingBlockEditor({
   const [productIds, setProductIds] = useState<string[]>(
     data.productIds || []
   );
+  const [benefits, setBenefits] = useState<string[]>(
+  data.benefits || [
+    "Instant access",
+    "Private community",
+    "Cancel anytime",
+  ]
+);
+
+
+useEffect(() => {
+  onChange({
+    ...data,
+    productIds,
+    benefits,
+  });
+}, [productIds, benefits]);
 
   // ------------------------------------------------
   // Sync local state when block changes (IMPORTANT)
@@ -125,6 +141,41 @@ export default function PricingBlockEditor({
           })}
         </div>
       )}
+      <div className="space-y-3 pt-4">
+  <label className="text-sm font-medium text-neutral-700">
+    Pricing Benefits
+  </label>
+
+  {benefits.map((b, i) => (
+    <div key={i} className="flex gap-2">
+      <input
+        value={b}
+        onChange={(e) => {
+          const next = [...benefits];
+          next[i] = e.target.value;
+          setBenefits(next);
+        }}
+        className="flex-1 p-2 rounded border bg-white"
+      />
+      <button
+        onClick={() =>
+          setBenefits(benefits.filter((_, idx) => idx !== i))
+        }
+        className="px-3 text-red-600"
+      >
+        ✕
+      </button>
+    </div>
+  ))}
+
+  <button
+    onClick={() => setBenefits([...benefits, "New benefit"])}
+    className="px-4 py-2 rounded bg-purple-600 text-white"
+  >
+    + Add Benefit
+  </button>
+</div>
+
     </div>
   );
 }

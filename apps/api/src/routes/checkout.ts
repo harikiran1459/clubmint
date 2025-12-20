@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import Razorpay from "razorpay";
 import { requireAuth } from "../middleware/auth";
+import { publicLimiter } from "../middleware/rateLimit";
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -61,72 +62,129 @@ const razorpay = new Razorpay({
 //     return res.status(500).json({ ok: false });
 //   }
 // });
-
-router.post("/create", requireAuth, async (req, res) => {
+router.post("/create",publicLimiter, async (req, res) => {
   try {
-    const { productId } = req.body;
-    const userId = req.userId;
+    const { productIds } = req.body;
 
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-      include: { creator: true },
-    });
-
-    if (!product) {
-      return res.status(404).json({ error: "Product not found" });
+    // ------------------------------------------------
+    // Validate input
+    // ------------------------------------------------
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: "No products selected",
+      });
     }
 
-    const creator = product.creator;
-    
+    // ------------------------------------------------
+    // Load products
+    // ------------------------------------------------
+    const products = await prisma.product.findMany({
+      where: {
+        id: { in: productIds },
+      },
+      include: {
+        creator: true,
+      },
+    });
+
+    if (products.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: "Products not found",
+      });
+    }
+
+    // ------------------------------------------------
+    // Ensure all products belong to SAME creator
+    // ------------------------------------------------
+    const creator = products[0].creator;
+
+    const mixedCreators = products.some(
+      (p) => p.creatorId !== creator.id
+    );
+
+    if (mixedCreators) {
+      return res.status(400).json({
+        ok: false,
+        error: "Products must belong to the same creator",
+      });
+    }
 
     if (!creator.razorpayAccountId) {
       return res.status(400).json({
+        ok: false,
         error: "Creator has not connected payouts",
       });
     }
 
-    const amount = product.priceCents * 100; // paise
+    // ------------------------------------------------
+    // Calculate totals (IN PAISE)
+    // ------------------------------------------------
+    const amount = products.reduce(
+      (sum, p) => sum + p.priceCents * 100,
+      0
+    );
+
     const commission = Math.round(
       (amount * creator.commissionPct) / 100
     );
+
     const creatorAmount = amount - commission;
 
+    // ------------------------------------------------
+    // Create Razorpay order
+    // ------------------------------------------------
     const order = await razorpay.orders.create({
-  amount,
-  currency: "INR",
-  receipt: `rcpt_${Date.now()}`,
-});
-const razorpayOrderId = order.id;
-const razorpayPaymentId = null; // set later via webhook
-const creatorId = creator.id;
-
-    await prisma.payment.create({
-  data: {
-    razorpayOrderId,
-    razorpayPaymentId,
-    amount,
-    commission,
-    creatorAmount,
-    status: "created",
-    creatorId,
-    productId: product.id,
-    userId,
-  },
-});
-
-
-    return res.json({
-      key: process.env.RAZORPAY_KEY_ID,
-      orderId: order.id, // ✅ now correctly typed
       amount,
       currency: "INR",
-      productTitle: product.title,
+      receipt: `rcpt_${Date.now()}`,
+    });
+
+    // ------------------------------------------------
+    // Record payment rows (one per product)
+    // ------------------------------------------------
+    await prisma.payment.createMany({
+      data: products.map((p) => ({
+        razorpayOrderId: order.id,
+        razorpayPaymentId: null,
+        amount: p.priceCents * 100,
+        commission: Math.round(
+          (p.priceCents * 100 * creator.commissionPct) / 100
+        ),
+        creatorAmount:
+          p.priceCents * 100 -
+          Math.round(
+            (p.priceCents * 100 * creator.commissionPct) / 100
+          ),
+        status: "created",
+        creatorId: creator.id,
+        productId: p.id,
+        userId: null, // 👈 PUBLIC CHECKOUT
+      })),
+    });
+
+    // ------------------------------------------------
+    // Response to frontend
+    // ------------------------------------------------
+    return res.json({
+      ok: true,
+      key: process.env.RAZORPAY_KEY_ID,
+      orderId: order.id,
+      amount,
+      currency: "INR",
+      productTitles: products.map((p) => p.title),
+      creatorHandle: creator.handle,
     });
   } catch (err) {
     console.error("Checkout create error:", err);
-    return res.status(500).json({ error: "Checkout creation failed" });
+    return res.status(500).json({
+      ok: false,
+      error: "Checkout creation failed",
+    });
   }
 });
+
 
 
 export default router;
