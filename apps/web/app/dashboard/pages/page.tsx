@@ -1,9 +1,11 @@
 "use client";
-//apps/web/app/dashboard/pages/page.tsx
+// apps/web/app/dashboard/pages/page.tsx
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { useSession } from "next-auth/react";
+import { color } from "framer-motion";
 
 export default function PagesDashboard() {
   const router = useRouter();
@@ -12,160 +14,172 @@ export default function PagesDashboard() {
   const [pages, setPages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const token =
+    (session as any)?.accessToken ?? (session as any)?.token ?? null;
+
   // --------------------------
-  // LOAD PAGES (Correct Route)
+  // LOAD PAGES
   // --------------------------
   async function loadPages() {
-  if (!session) {
-    console.log("loadPages: no session yet");
-    return;
-  }
-
-  // session might store token under accessToken or token or similar.
-  const token = (session as any).accessToken ?? (session as any).token ?? null;
-  console.log("loadPages: session token:", token);
-
-  if (!token) {
-    console.error("loadPages: no token in session — cannot call API");
-    setLoading(false);
-    return;
-  }
-
-  // try the likely endpoints in order, and show detailed error if any
-  const candidates = [
-    // `${process.env.NEXT_PUBLIC_API_URL}/pages`,          // if your backend uses /pages (preferred)
-    `${process.env.NEXT_PUBLIC_API_URL}/pages`  // older variant
-  ];
-
-  for (const url of candidates) {
-    try {
-      console.log("Trying GET", url);
-      const res = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      console.log("loadPages: ok response from", url, res.data);
-      // backend might return { pages } or { ok:true, pages }
-      const pagesFromServer = res.data.pages ?? res.data.page ?? (res.data.ok ? res.data.pages ?? [] : []);
-      setPages(Array.isArray(pagesFromServer) ? pagesFromServer : []);
+    if (!token) {
       setLoading(false);
       return;
-    } catch (err: any) {
-      // if 401/404 etc — show it but continue to try next candidate
-      console.warn(`GET ${url} failed:`, err?.response?.status, err?.response?.data ?? err.message);
+    }
+
+    try {
+      const res = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/pages`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const pagesFromServer =
+        res.data.pages ?? (res.data.ok ? res.data.pages : []);
+
+      setPages(Array.isArray(pagesFromServer) ? pagesFromServer : []);
+    } catch (err) {
+      console.error("Failed to load pages:", err);
+    } finally {
+      setLoading(false);
     }
   }
-
-  // if we reach here, all candidate endpoints failed
-  console.error("loadPages: all page endpoints failed. check backend routes and auth.");
-  setLoading(false);
-}
-
 
   // --------------------------
   // DELETE PAGE
   // --------------------------
- async function handleDeletePage(pageId: string) {
-  if (!confirm("Are you sure you want to delete this page?")) return;
+  async function handleDeletePage(pageId: string) {
+    if (!confirm("Delete this page permanently?")) return;
+    if (!token) return;
 
-  const token = (session as any).accessToken ?? (session as any).token ?? null;
-  if (!token) {
-    alert("Not authenticated — cannot delete page.");
-    return;
-  }
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/pages/${pageId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/pages/${pageId}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
+      const json = await res.json();
+      if (!json.ok) {
+        alert("Delete failed");
+        return;
+      }
 
-    const json = await res.json();
-
-    if (res.status === 401) {
-      console.error("DELETE returned 401:", json);
-      alert("Unauthorized: your token was rejected. Try signing out/in.");
-      return;
+      setPages((prev) => prev.filter((p) => p.id !== pageId));
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert("Delete failed");
     }
-
-    if (!json.ok) {
-      console.error("DELETE failed:", json);
-      alert("Delete failed: " + (json.error || JSON.stringify(json)));
-      return;
-    }
-
-    setPages((prev) => prev.filter((p) => p.id !== pageId));
-  } catch (err) {
-    console.error("Delete request failed:", err);
-    alert("Delete failed (network/error). Check server logs.");
   }
-}
-
 
   // --------------------------
-  // LOAD WHEN SESSION READY
+  // LOAD WHEN READY
   // --------------------------
   useEffect(() => {
-    if (status === "authenticated" && session?.accessToken) {
+    if (status === "authenticated") {
       loadPages();
     }
-  }, [status, session]);
-  
+  }, [status, token]);
 
   // --------------------------
   // RENDER
   // --------------------------
   return (
-    <div style={{ padding: 40 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700 }}>Your Sales Pages</h1>
+    <div>
+      <div className="flex items-center justify-between">
+        <h1 className="dashboard-title">Sales Pages</h1>
+      </div>
 
+      <p className="muted" style={{marginBottom: 20}}>
+        Create and manage your public sales pages.
+      </p>
       <button
-        className="auth-btn"
-        style={{ marginTop: 20 }}
-        onClick={() => router.push('/dashboard/pages/new')}
-      >
-        + Create New Page
-      </button>
+          className="auth-btn"
+          
+          onClick={() => router.push("/dashboard/pages/new")}
+        >
+          + New Page
+        </button>
 
       <div style={{ marginTop: 30 }}>
         {loading ? (
-          <p>Loading…</p>
+          <div className="no-data">Loading pages…</div>
         ) : pages.length === 0 ? (
-          <p>No pages created yet.</p>
+          <div className="no-data">
+            No pages yet. Create your first sales page.
+          </div>
         ) : (
-          pages.map((p) => (
-            <div
-              key={p.id}
-              style={{
-                padding: 16,
-                marginBottom: 12,
-                background: "#fff",
-                borderRadius: 8,
-                boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-              }}
-            >
-              <div style={{ fontSize: 18, fontWeight: 600 }}>{p.title || "(Untitled Page)"}</div>
-              <div style={{ fontSize: 13, color: "#777" }}>{p.slug}</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {pages.map((p) => {
+              const isPublished = p.published;
 
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
-                <button
-                  onClick={() => router.push(`/dashboard/pages/${p.id}`)}
-                  className="edit-btn"
+              return (
+                <div
+                  key={p.id}
+                  className="border rounded-xl p-5 shadow-sm"
+                  style={{background: "#222222"}}
                 >
-                  Edit Page
-                </button>
+                  {/* TITLE */}
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold" style={{color: "white"}}>
+                        {p.title || "Untitled Page"}
+                      </h3>
 
-                <button
-                  onClick={() => handleDeletePage(p.id)}
-                  className="delete-btn"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))
+                      <p className="text-sm text-gray-500">
+                        /{p.slug}
+                      </p>
+                    </div>
+
+                    {/* STATUS */}
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        isPublished
+                          ? "bg-green-100 text-green-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}
+                    >
+                      {isPublished ? "Published" : "Draft"}
+                    </span>
+                  </div>
+
+                  {/* ACTIONS */}
+                  <div className="flex items-center gap-4 mt-4">
+                    <button
+                      onClick={() =>
+                        router.push(`/dashboard/pages/${p.id}`)
+                      }
+                      className="text-sm underline"
+                      style={{color: "blue"}}
+                    >
+                      Edit
+                    </button>
+
+                    {isPublished && (
+                      <a
+                        href={`/${p.creator.handle}/${p.slug}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm underline"
+                        style={{color: "blue"}}
+                      >
+                        View Live
+                      </a>
+                    )}
+
+                    <button
+                      onClick={() => handleDeletePage(p.id)}
+                      className="text-sm text-red-600 hover:underline ml-auto"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

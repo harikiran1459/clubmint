@@ -1,87 +1,112 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 
-export default function ProductGroupMappingPage() {
+export default function ProductAccessPage() {
   const router = useRouter();
-  const params = useParams() as { productId: string };
-  const productId = params.productId;
+  const { productId } = useParams() as { productId: string };
+  const { data: session } = useSession();
 
   const [product, setProduct] = useState<any>(null);
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const initialGroupIds = product?.telegramGroups?.map((g: any) => g.id) ?? [];
+  const hasChanges = selectedGroups.sort().join(",") !== initialGroupIds.sort().join(",");
 
-  // Load product + existing mapping
+
+  // Load product + existing access mapping
   useEffect(() => {
-    if (!productId) return;
+  if (!productId || !session?.accessToken) return;
 
-    (async () => {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/telegram/creator/${productId}/group-mapping`
-      );
-      const json = await res.json();
-      if (json.ok) {
-        const prod = json.products.find((p: any) => p.id === productId);
-        setProduct(prod);
-        setSelectedGroups(prod.telegramGroups.map((g: any) => g.id));
+  (async () => {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/products/${productId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${session.accessToken}`,
+        },
       }
-    })();
-  }, [productId]);
+    );
 
-  // Load creator's groups
+    const json = await res.json();
+
+    if (!json.ok || !json.product) {
+      console.error("Failed to load product access", json);
+      return;
+    }
+
+    setProduct(json.product);
+    setSelectedGroups(
+      json.product.telegramGroups?.map((g: any) => g.id) ?? []
+    );
+  })();
+}, [productId, productId, session?.accessToken]);
+
+
+  // Load creator telegram groups
   useEffect(() => {
-    if (!product) return;
+    if (!product || !session?.accessToken) return;
 
     (async () => {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/telegram/groups/${product.creatorId}`
-      );
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${productId}/available-groups`, {
+  headers: { Authorization: `Bearer ${session.accessToken}` },
+});
+
       const json = await res.json();
       if (json.ok) setGroups(json.groups);
     })();
-  }, [product]);
+  }, [product, session?.accessToken]);
+
+  function toggleGroup(id: string) {
+    setSelectedGroups((prev) =>
+      prev.includes(id)
+        ? prev.filter((g) => g !== id)
+        : [...prev, id]
+    );
+  }
 
   async function saveMapping() {
     setSaving(true);
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/telegram/map-groups`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId,
-          groupIds: selectedGroups,
-        }),
-      });
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/products/${productId}/access`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.accessToken}`,
+          },
+          body: JSON.stringify({
+            groupIds: selectedGroups,
+          }),
+        }
+      );
 
-      alert("Mapping saved!");
       router.back();
     } finally {
       setSaving(false);
     }
   }
 
-  function toggleGroup(id: string) {
-    setSelectedGroups((prev) =>
-      prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]
-    );
-  }
-
-  if (!product) return <div>Loading…</div>;
+  if (!product) return <div className="no-data">Loading…</div>;
 
   return (
-    <div className="p-6">
-      <h1 className="dashboard-title">Telegram Group Mapping</h1>
-      <p className="muted mb-4">
-        Choose which groups <b>{product.title}</b> unlocks.
+    <div>
+      <h1 className="dashboard-title">Product Access</h1>
+
+      <p className="muted" style={{ marginBottom: 20 }}>
+        Select which Telegram groups are unlocked when someone buys{" "}
+        <b>{product.title}</b>.
       </p>
 
       <div className="space-y-3">
         {groups.map((g) => (
           <label
             key={g.id}
-            className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+            className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer"
           >
             <input
               type="checkbox"
@@ -89,8 +114,12 @@ export default function ProductGroupMappingPage() {
               onChange={() => toggleGroup(g.id)}
             />
             <div>
-              <p className="font-semibold">{g.title || "Unnamed Group"}</p>
-              <p className="text-sm text-gray-500">{g.tgGroupId}</p>
+              <p className="font-semibold">
+                {g.title || "Unnamed Group"}
+              </p>
+              <p className="text-sm text-gray-500">
+                {g.username ? `@${g.username}` : g.tgGroupId}
+              </p>
             </div>
           </label>
         ))}
@@ -98,10 +127,12 @@ export default function ProductGroupMappingPage() {
 
       <button
         onClick={saveMapping}
-        disabled={saving}
-        className="auth-btn mt-6"
+        disabled={saving || !hasChanges}
+        className="auth-btn"
+        style={{ marginTop: 24 }}
       >
-        {saving ? "Saving…" : "Save Mapping"}
+
+        {saving ? "Saving…" : "Save Access Mapping"}
       </button>
     </div>
   );

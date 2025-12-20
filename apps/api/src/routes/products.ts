@@ -175,5 +175,89 @@ router.post("/by-ids", async (req, res) => {
   }
 });
 
+router.get("/:id", requireAuth, async (req, res) => {
+  const product = await prisma.product.findFirst({
+    where: {
+      id: req.params.id,
+      creator: { userId: req.userId },
+    },
+    include: {
+      telegramGroups: true,
+    },
+  });
+
+  if (!product) {
+    return res.status(404).json({ ok: false });
+  }
+
+  res.json({ ok: true, product });
+});
+
+/**
+ * GET /products/:id/available-groups
+ * Get all Telegram groups for the product's creator
+ */
+router.get("/:id/available-groups", requireAuth, async (req, res) => {
+  const product = await prisma.product.findFirst({
+    where: {
+      id: req.params.id,
+      creator: { userId: req.userId },
+    },
+    select: {
+      creatorId: true,
+    },
+  });
+
+  if (!product) {
+    return res.status(404).json({ ok: false });
+  }
+
+  const groups = await prisma.telegramGroup.findMany({
+    where: {
+      creatorId: product.creatorId,
+      isConnected: true,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  res.json({ ok: true, groups });
+});
+
+
+/**
+ * POST /products/:id/access
+ * Update Telegram group access for a product
+ */
+router.post("/:id/access", requireAuth, async (req, res) => {
+  const { groupIds } = req.body;
+
+  if (!Array.isArray(groupIds)) {
+    return res.status(400).json({ ok: false });
+  }
+
+  const product = await prisma.product.findFirst({
+    where: {
+      id: req.params.id,
+      creator: { userId: req.userId },
+    },
+  });
+
+  if (!product) {
+    return res.status(404).json({ ok: false });
+  }
+
+  await prisma.product.update({
+    where: { id: product.id },
+    data: {
+      telegramGroups: {
+        set: groupIds.map((id: string) => ({ id })),
+      },
+    },
+  });
+
+  res.json({ ok: true });
+});
+
+
 
 export default router;

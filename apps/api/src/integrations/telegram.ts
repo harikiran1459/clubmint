@@ -10,6 +10,73 @@ import { createAlert } from "../utils/createAlert";
 const prisma = new PrismaClient();
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
+
+// ------------------------------------------------------------------
+// ACCESS CONTROL HANDLERS (STEP B)
+// ------------------------------------------------------------------
+async function grantTelegramAccess(access: any) {
+  const tgUserId = BigInt(access.platformUserId);
+  const tgGroupId = BigInt(access.metadata.tgGroupId);
+
+  try {
+    // Unban / add user
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/unbanChatMember`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: tgGroupId.toString(),
+        user_id: tgUserId.toString(),
+        only_if_banned: false,
+      }),
+    });
+
+    await prisma.accessControl.update({
+      where: { id: access.id },
+      data: {
+        status: "granted",
+        grantedAt: new Date(),
+      },
+    });
+
+    await logActivity({
+      creatorId: access.subscription.creatorId,
+      groupId: access.metadata.groupId,
+      tgUserId,
+      event: "allowed",
+      reason: "subscription_active",
+    });
+  } catch (err) {
+    console.error("Grant access error:", err);
+  }
+}
+
+async function revokeTelegramAccess(access: any) {
+  const tgUserId = BigInt(access.platformUserId);
+  const tgGroupId = BigInt(access.metadata.tgGroupId);
+
+  try {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/banChatMember`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: tgGroupId.toString(),
+        user_id: tgUserId.toString(),
+      }),
+    });
+
+    await logActivity({
+      creatorId: access.subscription.creatorId,
+      groupId: access.metadata.groupId,
+      tgUserId,
+      event: "kick",
+      reason: "subscription_revoked",
+    });
+  } catch (err) {
+    console.error("Revoke access error:", err);
+  }
+}
+
+
 // ------------------------------------------------------------------
 // HELPERS
 // ------------------------------------------------------------------
@@ -149,7 +216,42 @@ export async function handleTelegramUpdate(update: any) {
         "⚠️ Connected, but no active subscription found."
       );
 
-    await addUserToCreatorGroups(record.creatorId, tgUserId);
+    // Attach Telegram user ID to pending access
+await prisma.accessControl.updateMany({
+  where: {
+    platform: "telegram",
+    status: "pending",
+    subscription: {
+      userId: record.userId,
+      status: "active",
+      product: {
+        creatorId: record.creatorId,
+      },
+    },
+  },
+  data: {
+    platformUserId: tgUserId.toString(),
+  },
+});
+
+
+// Fetch pending access entries
+const pendingAccess = await prisma.accessControl.findMany({
+  where: {
+    platform: "telegram",
+    platformUserId: tgUserId.toString(),
+    status: "pending",
+  },
+  include: {
+    subscription: true,
+  },
+});
+
+// Grant access product-by-product
+for (const access of pendingAccess) {
+  await grantTelegramAccess(access);
+}
+
 
     return sendMessage(
       chatId,
@@ -227,6 +329,7 @@ bot.stopPolling(); // Ensure no duplicate polling
 if (!global.__bot_started__) {
   global.__bot_started__ = true;
   const WEBHOOK_URL = `${process.env.API_BASE_URL}/telegram/webhook`;
+  
 
   (async () => {
     try {
@@ -282,6 +385,22 @@ async function sendGroupWelcomeMessage(groupId: bigint, tgUserId: bigint, userNa
     console.error("Group welcome message error:", err);
   }
 }
+// Periodically process pending access (failsafe)
+setInterval(async () => {
+  const pending = await prisma.accessControl.findMany({
+    where: {
+      platform: "telegram",
+      status: "pending",
+      platformUserId: { not: null },
+    },
+    include: { subscription: true },
+  });
+
+  for (const access of pending) {
+    await grantTelegramAccess(access);
+  }
+}, 60_000); // every 60s
+
 
   console.log("🤖 Telegram bot running...");
 }

@@ -7,6 +7,34 @@ import { createAlert } from "../utils/createAlert";
 
 const router = Router();
 const prisma = new PrismaClient();
+async function createAccessForProductSubscription(subscriptionId: string) {
+  const subscription = await prisma.subscription.findUnique({
+    where: { id: subscriptionId },
+    include: {
+      product: {
+        include: {
+          telegramGroups: true,
+        },
+      },
+    },
+  });
+
+  if (!subscription || !subscription.product) return;
+
+  for (const group of subscription.product.telegramGroups) {
+    await prisma.accessControl.create({
+      data: {
+        subscriptionId: subscription.id,
+        platform: "telegram",
+        status: "pending",
+        metadata: {
+          groupId: group.id,
+          tgGroupId: group.tgGroupId.toString(),
+        },
+      },
+    });
+  }
+}
 
 router.post("/razorpay", async (req, res) => {
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET!;
@@ -26,6 +54,7 @@ router.post("/razorpay", async (req, res) => {
 
   const event = req.body.event;
   const payload = req.body.payload;
+  
 
   /* -------------------------------------------
      SUBSCRIPTION ACTIVATED / CHARGED
@@ -119,11 +148,26 @@ if (creator) {
         planExpiresAt: new Date(),
       },
     });
+    // 🔑 STEP B: Revoke product access
+await prisma.accessControl.updateMany({
+  where: {
+    subscription: {
+      provider: "razorpay",
+      providerSubscriptionId: sub.id,
+    },
+  },
+  data: {
+    status: "revoked",
+    revokedAt: new Date(),
+  },
+});
+
   }
 
   if (event === "payment.captured") {
   const payment = payload.payment.entity;
 
+  // Update payment record
   await prisma.payment.updateMany({
     where: {
       razorpayOrderId: payment.order_id,
@@ -133,7 +177,25 @@ if (creator) {
       status: "paid",
     },
   });
+
+  // 🔑 STEP B: Activate product subscription access
+  const subscription = await prisma.subscription.findFirst({
+    where: {
+      provider: "razorpay",
+      providerSubscriptionId: payment.subscription_id,
+    },
+  });
+
+  if (subscription && subscription.status !== "active") {
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: { status: "active" },
+    });
+
+    await createAccessForProductSubscription(subscription.id);
+  }
 }
+
 
 
 

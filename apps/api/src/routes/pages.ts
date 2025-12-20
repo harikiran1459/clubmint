@@ -21,6 +21,11 @@ router.get("/", requireAuth, async (req, res) => {
 
     const pages = await prisma.creatorPage.findMany({
       where: { creatorId: creator.id },
+      include: {
+    creator: {
+      select: { handle: true },
+    },
+  },
       orderBy: { createdAt: "desc" },
     });
 
