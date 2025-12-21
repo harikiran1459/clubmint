@@ -1,6 +1,11 @@
+// apps/web/app/pricing/page.tsx
 "use client";
+
 import PricingCards from "../components/PricingCards";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+const router = useRouter();
 
 const plans = [
   {
@@ -45,13 +50,19 @@ const plans = [
   },
 ];
 
-<PricingCards
-  plans={plans}
-  onAction={(key) => {
-    if (key === "free") {
-      window.location.href = "/signup";
-    } else {
-      window.location.href = "/dashboard/billing";
-    }
-  }}
-/>
+export default function PricingPage() {
+  return (
+    <main className="min-h-screen">
+      <PricingCards
+        plans={plans}
+        onAction={(key) => {
+          if (key === "free") {
+            router.push("/signup");
+          } else {
+            router.push("/dashboard/billing");
+          }
+        }}
+      />
+    </main>
+  );
+}
