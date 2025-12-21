@@ -5,150 +5,80 @@ import { useSession } from "next-auth/react";
 
 export default function PayoutsPage() {
   const { data: session, status } = useSession();
-  const [data, setData] = useState<any>(null);
-  const [payoutStatus, setPayoutStatus] = useState<{connected: boolean;status: string;} | null>(null);
+  const [data, setData] = useState({ totalRevenue: 0,
+  totalCommission: 0,
+  netEarnings: 0,});
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [payouts, setPayouts] = useState<any[]>([]);
+
 
   useEffect(() => {
-  if (!payoutStatus?.connected) return;
+    if (status !== "authenticated") return;
 
-  async function loadTransactions() {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/payouts/transactions`,
-      {
-        headers: {
-          Authorization: `Bearer ${session?.accessToken}`,
-        },
-      }
-    );
+    const token = (session?.user as any)?.accessToken;
+    if (!token) {
+      setLoading(false);
+      return};
 
-    const json = await res.json();
-    if (json.ok) setTransactions(json.payments);
-  }
+    async function load() {
+      const [earningsRes, txRes] = await Promise.all([
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/stats/creator/earnings`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/payouts/transactions`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${process.env.NEXT_PUBLIC_API_URL}/payouts/history`, {
+  headers: { Authorization: `Bearer ${token}` },
+}).then((r) => r.json())
+  .then((json) => {
+    if (json.ok) setPayouts(json.payouts);
+  }),
+      ]);
 
-  loadTransactions();
-}, [payoutStatus]);
+      const earningsJson = await earningsRes.json();
+      const txJson = await txRes.json();
 
-useEffect(() => {
-  if (status !== "authenticated") return;
+      if (earningsJson.ok) setData(earningsJson);
+      if (txJson.ok) setTransactions(txJson.payments);
+      
 
-  async function loadPayoutStatus() {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/payouts/status`,
-      {
-        headers: {
-          Authorization: `Bearer ${session?.accessToken}`,
-        },
-      }
-    );
-
-    const json = await res.json();
-    setPayoutStatus(json);
-  }
-
-  loadPayoutStatus();
-}, [status]);
-
-async function connectRazorpay() {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/payouts/connect`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${session?.accessToken}`,
-      },
+      setLoading(false);
     }
-  );
 
-  const json = await res.json();
+    load();
+  }, [status, session]);
 
-  if (json.url) {
-    window.location.href = json.url;
-  } else {
-    alert("Failed to start Razorpay onboarding");
+  if (status === "loading" || loading) {
+    return <div className="p-10 text-white/60">Loading payouts…</div>;
   }
-}
 
-
-  useEffect(() => {
-    if (!session?.accessToken) return;
-
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/stats/creator/earnings`, {
-      headers: {
-        Authorization: `Bearer ${session.accessToken}`,
-      },
-    })
-      .then((r) => r.json())
-      .then(setData);
-  }, [session]);
-
-  if (!payoutStatus) {
-  return <div className="p-10 text-gray-400">Loading payouts…</div>;
-}
-
-if (payoutStatus.status === "pending") {
   return (
-    <div className="max-w-xl mx-auto mt-16">
-      <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-8 text-center">
+    <div className="max-w-4xl mx-auto py-10 space-y-8">
+      {/* Manual payout notice */}
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
         <h2 className="text-xl font-semibold mb-2">
-          Complete Razorpay onboarding
+          Payouts during beta
         </h2>
-
-        <p className="text-white/70 mb-6">
-          Your Razorpay account is created but not fully verified.
-          Complete onboarding to enable payouts.
+        <p className="text-white/70">
+          During beta, payouts are processed manually on a weekly basis.
+          Please ensure your payout details are added in Settings.
         </p>
-
-        <button
-          onClick={connectRazorpay}
-          className="bg-yellow-500 px-6 py-3 rounded-xl font-medium text-black"
-        >
-          Continue onboarding
-        </button>
       </div>
-    </div>
-  );
-}
 
-
-/* ------------------------------------------------
-   NOT CONNECTED → SHOW CONNECT CARD ONLY
-------------------------------------------------- */
-if (!payoutStatus.connected) {
-  return (
-    <div className="max-w-xl mx-auto mt-16">
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
-        <h2 className="text-2xl font-semibold mb-2">
-          Connect Razorpay to receive payouts
-        </h2>
-
-        <p className="text-white/60 mb-6">
-          Connect your Razorpay account to receive payments from subscribers.
-          Your earnings will be transferred directly to your bank account.
-        </p>
-
-        <button
-          onClick={connectRazorpay}
-          className="bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-3 rounded-xl font-medium"
-        >
-          Connect Razorpay
-        </button>
-      </div>
-    </div>
-  );
-}
-
-  return (
-    <div className="max-w-4xl mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-8">Payouts</h1>
-
+      {/* Earnings summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card title="Total Revenue" value={`₹${data.totalRevenue / 100}`} />
-        <Card title="Platform Fee" value={`₹${data.totalCommission / 100}`} />
-        <Card title="You Earned" value={`₹${data.netEarnings / 100}`} />
+        <Card title="Total Revenue" value={`₹${data.totalRevenue ?? 0 / 100}`} />
+        <Card title="Platform Fee" value={`₹${data.totalCommission ?? 0 / 100}`} />
+        <Card title="You Earned" value={`₹${data.netEarnings ?? 0 / 100}`} />
       </div>
-      <div className="mt-10">
-        <h2 className="text-xl font-semibold mb-4">Transaction history</h2>
+
+      {/* Transactions */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">
+          Transaction history
+        </h2>
 
         {transactions.length === 0 ? (
           <p className="text-white/60">No payments yet.</p>
@@ -166,7 +96,6 @@ if (!payoutStatus.connected) {
                   <th className="p-3 text-center">Status</th>
                 </tr>
               </thead>
-
               <tbody>
                 {transactions.map((t) => (
                   <tr key={t.id} className="border-t border-white/10">
@@ -183,16 +112,8 @@ if (!payoutStatus.connected) {
                       ₹{t.net / 100}
                     </td>
                     <td className="p-3 text-center">
-                      <span
-                        className={`px-2 py-1 rounded text-xs ${
-                          t.status === "paid"
-                            ? "bg-green-500/20 text-green-400"
-                            : t.status === "failed"
-                            ? "bg-red-500/20 text-red-400"
-                            : "bg-yellow-500/20 text-yellow-400"
-                        }`}
-                      >
-                        {t.status}
+                      <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400">
+                        paid
                       </span>
                     </td>
                   </tr>
@@ -203,11 +124,44 @@ if (!payoutStatus.connected) {
         )}
       </div>
 
-      <p className="mt-6 text-sm text-white/50">
-        Payouts are settled directly to your connected Razorpay account.
-      </p>
+        {/* Payout history */}
+
+      <div className="mt-10">
+        <h2 className="text-xl font-semibold mb-4">
+          Payout history
+        </h2>
+
+        {payouts.length === 0 ? (
+          <p className="text-white/60">No payouts yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {payouts.map((p) => (
+              <div
+                key={p.id}
+                className="flex justify-between rounded-lg border border-white/10 bg-white/5 p-4 text-sm"
+              >
+                <div>
+                  <div>
+                    {new Date(p.periodStart).toLocaleDateString()} →{" "}
+                    {new Date(p.periodEnd).toLocaleDateString()}
+                  </div>
+                  <div className="text-xs opacity-60">
+                    {p.paidAt
+                      ? `Paid on ${new Date(p.paidAt).toDateString()}`
+                      : "Processing"}
+                  </div>
+                </div>
+
+                <div className="font-semibold">
+                  ₹{(p.totalAmount / 100).toFixed(2)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
     </div>
-    
   );
 }
 

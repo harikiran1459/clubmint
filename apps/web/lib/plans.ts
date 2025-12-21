@@ -10,7 +10,7 @@ export const CLUBMINT_PLANS = {
   },
   starter: {
     name: "Starter",
-    price: 1499,
+    price: 999,
     features: [
       "Up to 3 products",
       "Up to 3 Telegram groups",

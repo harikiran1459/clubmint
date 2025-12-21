@@ -29,7 +29,7 @@ export default function PricingCards({
         <div className="pricing-grid">
           {Object.entries(CLUBMINT_PLANS).map(([key, plan], idx) => {
             const isCurrent = currentPlan === key;
-            const isPopular = key === "pro"; // mark your best plan
+            const isPopular = key === "starter"; // mark your best plan
 
             return (
               <motion.div

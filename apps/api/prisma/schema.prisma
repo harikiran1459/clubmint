@@ -48,6 +48,16 @@ enum CreatorPlan {
   pro
 }
 
+enum EarningStatus {
+  PENDING
+  PAID
+  REVERSED
+}
+
+enum PayoutStatus {
+  INITIATED
+  COMPLETED
+}
 
 
 // MODELS
@@ -84,6 +94,13 @@ model Creator {
   commissionPct   Float        @default(15)
   planStartedAt   DateTime?
   planExpiresAt   DateTime?
+ 
+  payoutMethod  String? // "bank" | "upi"
+  bankName      String?
+  accountNumber String?
+  ifsc          String?
+  accountHolder String?
+  upiId         String?
 
   pricingPlan     Json?
   stripeAccountId String?
@@ -102,6 +119,8 @@ model Creator {
   pages                 CreatorPage[]
   alerts Alert[]
   payments Payment[]
+  earnings CreatorEarning[]
+  payouts  Payout[]
 
   Page Page[]
 }
@@ -325,13 +344,58 @@ model Payment {
 
   productId String
   creatorId String
-  userId    String
+  userId    String?
 
   status    String   // created | paid | failed
   createdAt DateTime @default(now())
 
   creator Creator @relation(fields: [creatorId], references: [id])
   product Product @relation(fields: [productId], references: [id])
-  user    User    @relation(fields: [userId], references: [id])
+  user    User?    @relation(fields: [userId], references: [id])
+  earnings CreatorEarning[]
 }
 
+model Payout {
+  id           String   @id @default(uuid())
+
+  creatorId    String
+  totalAmount  Int      // paise
+
+  periodStart  DateTime
+  periodEnd    DateTime
+
+  status       PayoutStatus @default(INITIATED)
+
+  reference    String?
+  paidAt       DateTime?
+
+  createdAt    DateTime @default(now())
+
+  creator      Creator  @relation(fields: [creatorId], references: [id])
+  earnings     CreatorEarning[]
+
+  @@index([creatorId, status])
+}
+
+model CreatorEarning {
+  id            String   @id @default(uuid())
+
+  creatorId     String
+  paymentId     String
+  payoutId      String?
+
+  grossAmount   Int
+  platformFee   Int
+  netAmount     Int
+
+  status        EarningStatus @default(PENDING)
+
+  createdAt     DateTime @default(now())
+  paidAt        DateTime?
+
+  creator       Creator  @relation(fields: [creatorId], references: [id])
+  payment       Payment  @relation(fields: [paymentId], references: [id])
+  payout        Payout?  @relation(fields: [payoutId], references: [id])
+
+  @@index([creatorId, status])
+}

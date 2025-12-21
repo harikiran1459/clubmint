@@ -9,6 +9,7 @@ import RevenueChart from "../components/dashboard/RevenueChart";
 export default function DashboardHome() {
   const { data: session, status } = useSession();
   const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
    const revenueTrend = [
   { label: "Week 1", value: 12000 },
   { label: "Week 2", value: 18000 },
@@ -21,23 +22,46 @@ export default function DashboardHome() {
     if (status !== "authenticated") return;
 
     async function loadStats() {
+      try{
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/stats/creator/overview`,
         {
           headers: {
-            Authorization: `Bearer ${session?.accessToken}`,
+            Authorization: `Bearer ${session?.user?.accessToken}`,
           },
         }
       );
 
       const json = await res.json();
-      setStats(json);
+      if (json.ok){
+      setStats(json.data);
+     console.log("STATS RESPONSE:", json);}
+     else {
+  setStats({
+    revenue: {
+      netThisMonth: 0,
+      mrr: 0,
+      commissionPaid: 0,
+    },
+    subscribers: {
+      active: 0,
+      newThisWeek: 0,
+      churnedThisMonth: 0,
+    },
+    products: {},
+    automation: { healthy: false },
+  });
+}
+    
+    } finally {
+        setLoading(false);
+      }
     }
 
     loadStats();
-  }, [status]);
+  }, [status, session]);
 
-  if (!stats) {
+  if (loading) {
     return (
       <div className="p-10 text-gray-400">
         Loading your creator dashboard…
@@ -51,16 +75,16 @@ export default function DashboardHome() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <MetricCard
           title="Net Revenue (This Month)"
-          value={`₹${stats.revenue.netThisMonth}`}
+          value={`₹${stats.revenue.netThisMonth ?? 0}`}
           accent="purple"
         />
         <MetricCard
           title="MRR"
-          value={`₹${stats.revenue.mrr}`}
+          value={`₹${stats.revenue.mrr ?? 0}`}
         />
         <MetricCard
           title="Commission Paid"
-          value={`₹${stats.revenue.commissionPaid}`}
+          value={`₹${stats.revenue.commissionPaid ?? 0}`}
           subtle
         />
       </div>

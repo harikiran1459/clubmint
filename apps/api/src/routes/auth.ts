@@ -35,31 +35,23 @@ router.post("/signup", async (req, res) => {
     }
 
     const user = await prisma.user.create({
-      data: {
-        email,
-        name,
-        passwordHash: hashed,
-        creator: {
-          create: {
-            handle,
-            bio: "",
-            pricingPlan: {},
-          },
-        },
-      },
-      include: { creator: true },
-    });
+  data: {
+    email,
+    name,
+    passwordHash: hashed,
+  },
+});
+
 
     return res.json({
-      ok: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        creatorId: user.creator.id,
-        creatorHandle: user.creator.handle,   // <-- IMPORTANT
-      }
-    });
+  ok: true,
+  user: {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+  },
+});
+
   } catch (err) {
     console.error("Signup error:", err);
     return res.status(500).json({ error: "Signup failed" });

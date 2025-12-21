@@ -1,9 +1,22 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
+export function requireAdmin(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  if ((req as any).user?.email !== "harikiran05271@gmail.com") {
+    return res.status(403).json({ error: "Admin only" });
+  }
+  next();
+}
 
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  console.log("AUTH TRACE:");
+  console.log("URL:", req.method, req.originalUrl);
+  console.log("HEADERS:", req.headers);
   const authHeader = req.headers.authorization;
 
   console.log("🔍 Incoming Auth Header:", authHeader);

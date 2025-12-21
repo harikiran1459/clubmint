@@ -10,6 +10,7 @@ export default function Sidebar() {
     { name: "Pages", href: "/dashboard/pages" },
     { name: "Integrations", href: "/dashboard/integrations" },
     { name: "Payouts", href: "/dashboard/payouts" },
+    { name: "Earnings", href: "/dashboard/earnings" },
     { name: "Subscribers", href: "/dashboard/subscribers" },
     { name: "Products", href: "/dashboard/products" },
     { name: "Pricng", href: "/dashboard/payments" },

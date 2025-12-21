@@ -11,7 +11,7 @@ export default function SettingsPage() {
   const { update } = useSession();
 
   const userId = (session?.user as any)?.userId;
-  const accessToken = session?.accessToken as string;
+  const accessToken = session?.user?.accessToken as string;
 
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -22,6 +22,13 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [telegramBusy, setTelegramBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [payoutMethod, setPayoutMethod] = useState<"" | "bank" | "upi">("");
+const [bankName, setBankName] = useState("");
+const [accountNumber, setAccountNumber] = useState("");
+const [ifsc, setIfsc] = useState("");
+const [accountHolder, setAccountHolder] = useState("");
+const [upiId, setUpiId] = useState("");
+
 
   // ---------------- LOAD PROFILE ----------------
   useEffect(() => {
@@ -44,6 +51,56 @@ export default function SettingsPage() {
       }
     })();
   }, [userId]);
+
+  async function savePayoutDetails() {
+  if (!payoutMethod) {
+    alert("Please select a payout method");
+    return;
+  }
+
+  setSaving(true);
+
+  const token = (session?.user as any)?.accessToken;
+  if (!token) return;
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/settings/payout`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        payoutMethod,
+        bankName,
+        accountNumber,
+        ifsc,
+        accountHolder,
+        upiId,
+      }),
+    }
+  );
+
+  const json = await res.json();
+  setSaving(false);
+
+  if (json.ok && json.creator) {
+    alert("Payout details saved successfully");
+  setProfile(json.creator);
+
+  setPayoutMethod(json.creator.payoutMethod ?? "");
+  setBankName(json.creator.bankName ?? "");
+  setAccountNumber(json.creator.accountNumber ?? "");
+  setIfsc(json.creator.ifsc ?? "");
+  setAccountHolder(json.creator.accountHolder ?? "");
+  setUpiId(json.creator.upiId ?? "");
+}
+else {
+    alert("Failed to save payout details");
+  }
+}
+
 
   // ---------------- SAVE PROFILE ----------------
   async function saveProfile() {
@@ -89,6 +146,9 @@ export default function SettingsPage() {
       setTelegramBusy(false);
     }
   }
+
+  
+
 
   // ---------------- DELETE ACCOUNT ----------------
   async function deleteAccount() {
@@ -194,6 +254,75 @@ export default function SettingsPage() {
           <p className="muted">Telegram not connected.</p>
         )}
       </div>
+
+      <div className="mt-12">
+  <h2 className="text-xl font-semibold mb-4">Payout details</h2>
+
+  <div className="rounded-xl border border-white/10 bg-white/5 p-6 space-y-4">
+    <select
+  value={payoutMethod}
+  onChange={(e) => setPayoutMethod(e.target.value as any)}
+  className="w-full bg-black/30 border border-white/10 rounded-lg p-2"
+>
+
+      <option style={{color: "black", backgroundColor: "white"}} value="">Select payout method</option>
+      <option style={{color: "black"}} value="bank">Bank transfer</option>
+      <option style={{color: "black"}} value="upi">UPI</option>
+    </select>
+
+    {payoutMethod === "bank" && (
+      <>
+        <input
+        className="w-full md:w-96 h-10 px-4 py-2 my-4 mx-0 md:mx-2 text-black"
+  placeholder="Account holder name"
+  value={accountHolder}
+  onChange={(e) => setAccountHolder(e.target.value)}
+/>
+
+<input
+className="w-full md:w-96 h-10 px-4 py-2 my-4 mx-0 md:mx-2 text-black"
+  placeholder="Bank name"
+  value={bankName}
+  onChange={(e) => setBankName(e.target.value)}
+/>
+
+<input
+className="w-full md:w-96 h-10 px-4 py-2 my-4 mx-0 md:mx-2 text-black"
+  placeholder="Account number"
+  value={accountNumber}
+  onChange={(e) => setAccountNumber(e.target.value)}
+/>
+
+<input
+className="w-full md:w-96 h-10 px-4 py-2 my-4 mx-0 md:mx-2 text-black"
+  placeholder="IFSC code"
+  value={ifsc}
+  onChange={(e) => setIfsc(e.target.value)}
+/>
+
+      </>
+    )}
+
+    {payoutMethod === "upi" && (
+      <input
+      className="w-full md:w-96 h-10 px-4 py-2 my-4 mx-0 md:mx-2 text-black"
+  placeholder="UPI ID (example@upi)"
+  value={upiId}
+  onChange={(e) => setUpiId(e.target.value)}
+/>
+
+    )}
+
+    <button
+  onClick={savePayoutDetails}
+  disabled={saving}
+  className="bg-purple-600 px-6 py-2 rounded-lg disabled:opacity-50"
+>
+  {saving ? "Saving…" : "Save payout details"}
+</button>
+
+  </div>
+</div>
 
       {/* DANGER ZONE */}
       <div className="chart-card" style={{ marginTop: 20 }}>

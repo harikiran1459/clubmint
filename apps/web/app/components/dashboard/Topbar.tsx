@@ -14,7 +14,25 @@ export default function Topbar() {
   return (
     <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
       {/* LEFT */}
-      <h1 className="text-lg font-semibold">Dashboard</h1>
+      <div className="flex gap-6">
+      <div className=" p-3 bg-neutral-800 border-neutral rounded-lg flex gap-6">
+  <a
+    href="/dashboard"
+    className="text-m text-white/70 hover:text-white"
+  >
+    Dashboard
+  </a>
+  </div>
+  <div className="bg-black/30 p-3 bg-neutral-800 border-white-100 rounded-lg flex gap-6">
+  <a
+    href="/my-access"
+    className="text-m text-white/70 hover:text-white"
+  >
+    My Access
+  </a>
+</div>
+</div>
+
 
       {/* RIGHT */}
       <div className="relative flex items-center gap-3">

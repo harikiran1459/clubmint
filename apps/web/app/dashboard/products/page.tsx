@@ -22,9 +22,9 @@ export default function ProductsPage() {
   });
 
   useEffect(() => {
-    if (!userId || !session?.accessToken) return;
+    if (!userId || !session?.user?.accessToken) return;
     loadProducts();
-  }, [userId, session?.accessToken]);
+  }, [userId, session?.user?.accessToken]);
 
   async function loadProducts() {
     try {
@@ -32,7 +32,7 @@ export default function ProductsPage() {
         `${process.env.NEXT_PUBLIC_API_URL}/products`,
         {
           headers: {
-            Authorization: `Bearer ${session?.accessToken}`,
+            Authorization: `Bearer ${session?.user?.accessToken}`,
           },
         }
       );
@@ -65,7 +65,7 @@ export default function ProductsPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.accessToken}`,
+            Authorization: `Bearer ${session?.user?.accessToken}`,
           },
           body: JSON.stringify({
             title: newProd.name,
@@ -235,7 +235,7 @@ export default function ProductsPage() {
                     {
                       method: "DELETE",
                       headers: {
-                        Authorization: `Bearer ${session?.accessToken}`,
+                        Authorization: `Bearer ${session?.user?.accessToken}`,
                       },
                     }
                   );

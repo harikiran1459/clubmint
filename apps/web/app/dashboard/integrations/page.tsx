@@ -10,60 +10,47 @@ export default function IntegrationsPage() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
 
-  const userId = (session?.user as any)?.userId;
-
   const [verificationCode, setVerificationCode] = useState("");
   const [requestingCode, setRequestingCode] = useState(false);
-
-  const [creatorId, setCreatorId] = useState<string | null>(null);
   const [telegramStatus, setTelegramStatus] = useState<any>(null);
 
   const [groups, setGroups] = useState<any[]>([]);
   const [loadingCreator, setLoadingCreator] = useState(true);
   const [loading, setLoading] = useState(true);
   const [groupStats, setGroupStats] = useState<Record<string, any>>({});
+  const authHeaders = () => ({
+  Authorization: `Bearer ${session?.user?.accessToken}`,
+});
+
 
 
   // ----------------------------------------------------
   // SESSION CHECK
   // ----------------------------------------------------
   useEffect(() => {
-    if (sessionStatus !== "loading" && !session?.user?.userId) {
-      router.replace("/api/auth/signin");
-    }
-  }, [sessionStatus, session]);
+  if (sessionStatus === "loading") return;
+
+  if (!session) {
+    router.replace("/login");
+    return;
+  }
+
+  if (!session.user?.creatorId) {
+    router.replace("/my-access");
+    return;
+  }
+}, [sessionStatus, session]);
+
+const creatorId = session?.user.creatorId;
+const userId = session?.user.userId;
 
   // ----------------------------------------------------
   // LOAD CREATOR PROFILE
-  // ----------------------------------------------------
-  useEffect(() => {
-    if (!userId) return;
-
-    (async () => {
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/creators/by-user/${userId}`
-        );
-        const json = await res.json();
-
-        if (json.ok && json.creator) setCreatorId(json.creator.id);
-        else setCreatorId(null);
-      } catch (err) {
-        console.error("Failed to load creator info:", err);
-      } finally {
-        setLoadingCreator(false);
-      }
-    })();
-  }, [userId]);
+  // ---------------------------------------------------- 
 
   // ----------------------------------------------------
   // REDIRECT IF CREATOR DOES NOT EXIST
   // ----------------------------------------------------
-  useEffect(() => {
-    if (!loadingCreator && !creatorId) {
-      router.replace("/creator/onboarding");
-    }
-  }, [loadingCreator, creatorId]);
 
   // ----------------------------------------------------
   // LOAD BASIC TELEGRAM STATUS (account)
@@ -74,7 +61,7 @@ export default function IntegrationsPage() {
     (async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/telegram/status/${userId}`
+          `${process.env.NEXT_PUBLIC_API_URL}/telegram/status/${userId}`, { headers: authHeaders() }
         );
         const json = await res.json();
         setTelegramStatus(json);
@@ -93,7 +80,7 @@ export default function IntegrationsPage() {
     (async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/telegram/groups/${creatorId}`
+          `${process.env.NEXT_PUBLIC_API_URL}/telegram/groups/${creatorId}`, { headers: authHeaders() }
         );
         const json = await res.json();
 
@@ -117,7 +104,7 @@ export default function IntegrationsPage() {
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/telegram/disconnect/${userId}`,
-        { method: "POST" }
+        { method: "POST", headers: authHeaders()  }
       );
 
       const json = await res.json();
@@ -136,7 +123,7 @@ export default function IntegrationsPage() {
     try {
       await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/telegram/group/${tgGroupId}/disconnect`,
-        { method: "PATCH" }
+        { method: "PATCH", headers: authHeaders() }
       );
       setGroups((prev) =>
         prev.map((g) =>
@@ -151,7 +138,7 @@ export default function IntegrationsPage() {
 async function loadGroupStats(tgGroupId: string) {
   try {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/telegram/group-stats/${tgGroupId}`
+      `${process.env.NEXT_PUBLIC_API_URL}/telegram/group-stats/${tgGroupId}`, { headers: authHeaders() }
     );
     const json = await res.json();
 
@@ -188,7 +175,7 @@ useEffect(() => {
         `${process.env.NEXT_PUBLIC_API_URL}/telegram/request-code`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({ userId, creatorId }),
         }
       );
@@ -207,7 +194,7 @@ useEffect(() => {
   // ----------------------------------------------------
   // LOADING SCREEN
   // ----------------------------------------------------
-  if (loading || loadingCreator) {
+  if (loading) {
     return <div className="no-data">Loading premium integration panel…</div>;
   }
 
@@ -372,7 +359,7 @@ useEffect(() => {
                           onClick={async () => {
                             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/telegram/group-test-message`, {
                               method: "POST",
-                              headers: { "Content-Type": "application/json" },
+                              headers: { "Content-Type": "application/json", ...authHeaders() },
                               body: JSON.stringify({ tgGroupId: g.tgGroupId }),
                             });
                             alert("Test message sent!");

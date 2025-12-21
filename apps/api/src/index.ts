@@ -18,11 +18,15 @@ import productRoutes from "./routes/products";
 //import paymentRoutes from "./routes/payments";
 import settingsRoutes from "./routes/settings";
 import pagesRoutes from "./routes/pages";
+import subscribersRoutes from "./routes/subscribers";
 import telegramWebhookRouter from "./routes/telegram-webhook";
 import uploadRoutes from "./routes/upload";
 import billingRoutes from "./routes/billing";
 import payoutsroutes from "./routes/payouts";
 import razorpayWebhookRoutes from "./routes/razorpay-webhook";
+import earningsRouter from "./routes/earnings";
+import meRoutes from "./routes/me";
+
 
 
 
@@ -64,13 +68,16 @@ app.use("/creator", (req, res, next) => {
   console.log("[MOUNT] /creator router hit:", req.method, req.url);
   next();
 }, creatorRoutes);
-app.use("/creators", creatorRoutes);
+app.use("/creator", creatorRoutes);
+app.use("/me", meRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/billing", billingRoutes);
 app.use("/payouts", payoutsroutes);
 app.use("/webhooks", razorpayWebhookRoutes);
 app.use("/pages", pagesRoutes);
+app.use("/", earningsRouter);
 app.use("/subscriptions", subscriptionRoutes);
+app.use("/subscribers", subscribersRoutes);
 app.use("/products", productRoutes);
 //app.use("/payments", paymentRoutes);
 app.use("/settings", settingsRoutes);

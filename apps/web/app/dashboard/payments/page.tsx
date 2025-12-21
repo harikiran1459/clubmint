@@ -30,7 +30,7 @@ export default function BillingPage() {
   {
     key: "starter",
     name: "Starter",
-    price: "₹1,499",
+    price: "₹999",
     subtitle: "per month",
     commission: "5% commission",
     highlighted: true,
@@ -66,7 +66,7 @@ export default function BillingPage() {
       `${process.env.NEXT_PUBLIC_API_URL}/billing/me`,
       {
         headers: {
-          Authorization: `Bearer ${session?.accessToken}`,
+          Authorization: `Bearer ${session?.user?.accessToken}`,
         },
       }
     );
@@ -77,7 +77,7 @@ export default function BillingPage() {
   }
 
   loadBilling();
-}, [status]);
+}, [status, session]);
 
   async function upgrade(plan: string) {
   const res = await fetch(
@@ -86,7 +86,7 @@ export default function BillingPage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${session?.accessToken}`,
+        Authorization: `Bearer ${session?.user?.accessToken}`,
       },
       body: JSON.stringify({ plan }),
     }

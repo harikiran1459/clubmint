@@ -38,6 +38,25 @@ router.post("/profile", requireAuth, async (req, res) => {
   }
 });
 
+router.patch("/payout", requireAuth, async (req, res) => {
+  const { payoutMethod, bankName, accountNumber, ifsc, accountHolder, upiId } =
+    req.body;
+
+  await prisma.creator.update({
+    where: { userId: req.userId },
+    data: {
+      payoutMethod,
+      bankName,
+      accountNumber,
+      ifsc,
+      accountHolder,
+      upiId,
+    },
+  });
+
+  res.json({ ok: true });
+});
+
 
 /**
  * POST /settings/telegram/unlink

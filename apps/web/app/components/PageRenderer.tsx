@@ -668,6 +668,26 @@ export default function PageRenderer({
 
   // Razorpay flow continues here
   console.log("Checkout created:", json);
+  const options = {
+  key: json.key,
+  amount: json.amount,
+  currency: json.currency,
+  name: "ClubMint",
+  description: json.productTitles.join(", "),
+  order_id: json.orderId,
+
+  handler: function () {
+    // success handled via webhook
+    window.location.href = "/success";
+  },
+
+  theme: {
+    color: "#7c3aed",
+  },
+};
+
+const rzp = new (window as any).Razorpay(options);
+rzp.open();
 }}
                     className={`mt-8 w-auto py-3 rounded-full font-semibold transition ${
                       isFeatured

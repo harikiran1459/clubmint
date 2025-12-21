@@ -18,7 +18,7 @@ const plans = [
   {
     key: "starter",
     name: "Starter",
-    price: "₹1,499",
+    price: "₹999",
     subtitle: "per month",
     commission: "5% commission",
     highlighted: true,

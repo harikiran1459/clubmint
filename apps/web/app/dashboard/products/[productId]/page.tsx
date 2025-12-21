@@ -19,14 +19,14 @@ export default function ProductAccessPage() {
 
   // Load product + existing access mapping
   useEffect(() => {
-  if (!productId || !session?.accessToken) return;
+  if (!productId || !session?.user?.accessToken) return;
 
   (async () => {
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/products/${productId}`,
       {
         headers: {
-          Authorization: `Bearer ${session.accessToken}`,
+          Authorization: `Bearer ${session.user?.accessToken}`,
         },
       }
     );
@@ -43,22 +43,22 @@ export default function ProductAccessPage() {
       json.product.telegramGroups?.map((g: any) => g.id) ?? []
     );
   })();
-}, [productId, productId, session?.accessToken]);
+}, [productId, productId, session?.user?.accessToken]);
 
 
   // Load creator telegram groups
   useEffect(() => {
-    if (!product || !session?.accessToken) return;
+    if (!product || !session?.user?.accessToken) return;
 
     (async () => {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${productId}/available-groups`, {
-  headers: { Authorization: `Bearer ${session.accessToken}` },
+  headers: { Authorization: `Bearer ${session.user.accessToken}` },
 });
 
       const json = await res.json();
       if (json.ok) setGroups(json.groups);
     })();
-  }, [product, session?.accessToken]);
+  }, [product, session?.user?.accessToken]);
 
   function toggleGroup(id: string) {
     setSelectedGroups((prev) =>
@@ -77,7 +77,7 @@ export default function ProductAccessPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.accessToken}`,
+            Authorization: `Bearer ${session?.user?.accessToken}`,
           },
           body: JSON.stringify({
             groupIds: selectedGroups,

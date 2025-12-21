@@ -2,6 +2,9 @@
 // apps/web/pages/api/auth/[...nextauth].ts
 import NextAuth, { type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+// import { PrismaClient } from "../../../../api/node_modules/@prisma/client";
+
+// const prisma = new PrismaClient();
 
 // ─────────────────────────────────────────────
 //  EXTEND SESSION & JWT TYPES
@@ -12,8 +15,8 @@ declare module "next-auth" {
       userId?: string;
       creatorId?: string;
       creatorHandle?: string;
+      accessToken?: string;
     } & DefaultSession["user"];
-    accessToken?: string;
   }
 
   interface User {
@@ -63,6 +66,7 @@ export default NextAuth({
         );
 
         const body = await res.json();
+        console.log("NEXTAUTH LOGIN RESPONSE:", body);
         if (!body.ok) return null;
 
         // Backend returns { user: { id, email, creatorId }, token }
@@ -84,11 +88,16 @@ export default NextAuth({
   callbacks: {
     // Attach user info into JWT
     async jwt({ token, user }) {
+      console.log("JWT CALLBACK USER:", user);
       if (user) {
         token.userId = (user as any).userId || user.id;
-        token.creatorId = user.creatorId;
-        token.creatorHandle = (user as any).creatorHandle;
         token.accessToken = (user as any).accessToken;
+        // const creator = await prisma.creator.findUnique({
+        //   where: { userId: token.userId },
+        //   select: { id: true, handle: true },
+        // });
+        token.creatorId = user.creatorId;
+        token.creatorHandle = user.creatorHandle;
         token.image = user.image;
       }
       return token;
@@ -96,13 +105,14 @@ export default NextAuth({
 
     // Expose JWT fields into session object
     async session({ session, token }) {
+      console.log("SESSION CALLBACK TOKEN:", token);
       if (session.user) {
         session.user.image = token.image as string;
         session.user.userId = token.userId;
         session.user.creatorId = token.creatorId;
         session.user.creatorHandle = token.creatorHandle;
+        session.user.accessToken = token.accessToken as string;
       }
-      session.accessToken = token.accessToken;
       return session;
     },
   },

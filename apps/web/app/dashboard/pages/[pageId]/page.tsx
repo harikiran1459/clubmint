@@ -54,7 +54,7 @@ export default function PageEditorShell() {
   // LOAD PAGE
   // ───────────────────────────
   useEffect(() => {
-    if (!pageId || !session?.accessToken) return;
+    if (!pageId || !session?.user?.accessToken) return;
 
     (async () => {
       setLoading(true);
@@ -63,7 +63,7 @@ export default function PageEditorShell() {
           `${process.env.NEXT_PUBLIC_API_URL}/pages/by-id/${pageId}`,
           {
             headers: {
-              Authorization: `Bearer ${session.accessToken}`,
+              Authorization: `Bearer ${session.user?.accessToken}`,
             },
           }
         );
@@ -99,7 +99,7 @@ setSections(normalizedSections);
         setLoading(false);
       }
     })();
-  }, [pageId, session?.accessToken]);
+  }, [pageId, session?.user?.accessToken]);
 
   // ───────────────────────────
   // AUTO SLUG (first time only)
@@ -120,7 +120,7 @@ setSections(normalizedSections);
   // ───────────────────────────
   const savePage = useCallback(
     async (opts?: { publish?: boolean }) => {
-      if (!session?.accessToken) return alert("Not logged in");
+      if (!session?.user?.accessToken) return alert("Not logged in");
       if (!title.trim()) return alert("Title is required");
       if (!slug.trim()) return alert("Slug is required");
 
@@ -142,7 +142,7 @@ setSections(normalizedSections);
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${session.accessToken}`,
+              Authorization: `Bearer ${session.user?.accessToken}`,
             },
             body: JSON.stringify(body),
           }
@@ -190,7 +190,7 @@ setSections(normalizedSections);
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.accessToken}`,
+          Authorization: `Bearer ${session?.user?.accessToken}`,
         },
         body: JSON.stringify({ publish: !published }),
       }

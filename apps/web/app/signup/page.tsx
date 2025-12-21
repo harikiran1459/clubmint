@@ -1,12 +1,14 @@
 "use client";
 
 import axios from "axios";
-import { useState } from "react";
+import { use, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 export default function SignupPage() {
   const router = useRouter();
+  const { data: session } = useSession();
 
   const [form, setForm] = useState({
     email: "",
@@ -47,7 +49,12 @@ export default function SignupPage() {
       localStorage.setItem("userId", user.id);
       localStorage.setItem("token", token);
 
-      router.push("/dashboard");
+      if ((session?.user as any)?.creatorId) {
+  router.push("/dashboard");
+} else {
+  router.push("/my-access");
+}
+
     } catch (err: any) {
       console.error(err);
       setError(err.response?.data?.error || "Signup failed");

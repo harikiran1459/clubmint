@@ -16,7 +16,7 @@ export const CLUBMINT_PLANS = {
 
   starter: {
     name: "Starter",
-    price: 1499,
+    price: 999,
     commissionPct: 5,
     razorpayPlanId: "plan_RrzVNj5MyoyfjX",
     features: {

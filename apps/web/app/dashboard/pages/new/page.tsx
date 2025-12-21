@@ -10,7 +10,7 @@ export default function NewPage() {
   const { data: session } = useSession();
 
  useEffect(() => {
-  if (!session?.accessToken) return;
+  if (!session?.user?.accessToken) return;
 
   async function createPage() {
     try {
@@ -18,7 +18,7 @@ export default function NewPage() {
         `${process.env.NEXT_PUBLIC_API_URL}/pages/create`,
         {},
         {
-          headers: { Authorization: `Bearer ${session?.accessToken}` },
+          headers: { Authorization: `Bearer ${session?.user?.accessToken}` },
         }
       );
 

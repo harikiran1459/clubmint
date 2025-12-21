@@ -17,51 +17,6 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET!,
 });
 
-// router.post("/checkout/create", async (req, res) => {
-//   try {
-//     const { productIds } = req.body;
-
-//     if (!Array.isArray(productIds) || productIds.length === 0) {
-//       return res.status(400).json({ ok: false, error: "No products selected" });
-//     }
-
-//     const products = await prisma.product.findMany({
-//       where: { id: { in: productIds } },
-//     });
-
-//     if (products.length === 0) {
-//       return res.status(400).json({ ok: false, error: "Products not found" });
-//     }
-
-//     const lineItems = products.map((p) => {
-//   if (!p.stripePriceId) {
-//     throw new Error(`Product ${p.id} missing stripePriceId`);
-//   }
-
-//   return {
-//     price: p.stripePriceId,
-//     quantity: 1,
-//   };
-// });
-
-
-//     const session = await stripe.checkout.sessions.create({
-//       mode: "subscription",
-//       payment_method_types: ["card"],
-//       line_items: lineItems,
-//       success_url: "http://localhost:3000/success?session_id={CHECKOUT_SESSION_ID}",
-//       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/cancel`,
-//       metadata: {
-//         productIds: productIds.join(","),
-//       },
-//     });
-
-//     return res.json({ ok: true, url: session.url });
-//   } catch (err) {
-//     console.error("Checkout create error:", err);
-//     return res.status(500).json({ ok: false });
-//   }
-// });
 router.post("/create",publicLimiter, async (req, res) => {
   try {
     const { productIds } = req.body;
@@ -111,18 +66,11 @@ router.post("/create",publicLimiter, async (req, res) => {
       });
     }
 
-    if (!creator.razorpayAccountId) {
-      return res.status(400).json({
-        ok: false,
-        error: "Creator has not connected payouts",
-      });
-    }
-
     // ------------------------------------------------
     // Calculate totals (IN PAISE)
     // ------------------------------------------------
     const amount = products.reduce(
-      (sum, p) => sum + p.priceCents * 100,
+      (sum, p) => sum + p.priceCents,
       0
     );
 
@@ -148,7 +96,7 @@ router.post("/create",publicLimiter, async (req, res) => {
       data: products.map((p) => ({
         razorpayOrderId: order.id,
         razorpayPaymentId: null,
-        amount: p.priceCents * 100,
+        amount: p.priceCents,
         commission: Math.round(
           (p.priceCents * 100 * creator.commissionPct) / 100
         ),

@@ -46,7 +46,7 @@ useEffect(() => {
   // Load creator products
   // ------------------------------------------------
   useEffect(() => {
-    if (!session?.accessToken) return;
+    if (!session?.user?.accessToken) return;
 
     async function loadProducts() {
       try {
@@ -54,7 +54,7 @@ useEffect(() => {
           `${process.env.NEXT_PUBLIC_API_URL}/products`,
           {
             headers: {
-              Authorization: `Bearer ${session?.accessToken}`,
+              Authorization: `Bearer ${session?.user?.accessToken}`,
             },
           }
         );

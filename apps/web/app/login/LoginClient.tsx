@@ -1,4 +1,5 @@
 "use client";
+//apps/web/app/login/LoginClient.tsx
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
@@ -14,19 +15,24 @@ export default function LoginClient() {
   const params = useSearchParams();
   const error = params?.get("error");
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
+ async function submit(e: React.FormEvent) {
+  e.preventDefault();
+  setLoading(true);
 
-    await signIn("credentials", {
-      email,
-      password,
-      redirect: true,
-      callbackUrl: "/dashboard",
-    });
+  const res = await signIn("credentials", {
+    email,
+    password,
+    redirect: false, // 👈 IMPORTANT
+  });
 
-    setLoading(false);
-  }
+  setLoading(false);
+
+  if (res?.error) return;
+
+  // Let middleware / next page decide
+  window.location.href = "/post-login";
+}
+
 
   return (
     <main className="auth-wrapper">

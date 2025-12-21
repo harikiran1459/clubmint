@@ -5,9 +5,11 @@ import { CLUBMINT_PLANS } from "../config/plans";
 import { createAlert } from "../utils/createAlert";
 import { strictLimiter } from "../middleware/rateLimit";
 
-
 const router = Router();
 const prisma = new PrismaClient();
+
+const PLATFORM_FEE_FALLBACK = 10; // % if creator commission missing
+
 async function createAccessForProductSubscription(subscriptionId: string) {
   const subscription = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
@@ -55,7 +57,6 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
 
   const event = req.body.event;
   const payload = req.body.payload;
-  
 
   /* -------------------------------------------
      SUBSCRIPTION ACTIVATED / CHARGED
@@ -76,10 +77,7 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
       ([_, v]) => v.razorpayPlanId === sub.plan_id
     );
 
-    if (!planEntry) {
-      console.error("⚠️ Unknown Razorpay plan ID:", sub.plan_id);
-      return res.sendStatus(200);
-    }
+    if (!planEntry) return res.sendStatus(200);
 
     const [planKey, planConfig] = planEntry;
 
@@ -94,26 +92,28 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
     });
   }
 
+  /* -------------------------------------------
+     SUBSCRIPTION PAYMENT FAILED
+  ------------------------------------------- */
   if (event === "subscription.payment_failed") {
-  const sub = payload.subscription.entity;
+    const sub = payload.subscription.entity;
 
-  const creator = await prisma.creator.findFirst({
-    where: { razorpaySubId: sub.id },
-  });
+    const creator = await prisma.creator.findFirst({
+      where: { razorpaySubId: sub.id },
+    });
 
-  if (creator) {
-    await createAlert(
-      creator.id,
-      "payment_failed",
-      "Subscription payment failed. Access may be revoked if not resolved.",
-      {
-        razorpaySubscriptionId: sub.id,
-        amount: payload.payment?.entity?.amount,
-      }
-    );
+    if (creator) {
+      await createAlert(
+        creator.id,
+        "payment_failed",
+        "Subscription payment failed. Access may be revoked if not resolved.",
+        {
+          razorpaySubscriptionId: sub.id,
+          amount: payload.payment?.entity?.amount,
+        }
+      );
+    }
   }
-}
-
 
   /* -------------------------------------------
      SUBSCRIPTION CANCELLED / EXPIRED
@@ -124,21 +124,22 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
     event === "subscription.halted"
   ) {
     const sub = payload.subscription.entity;
-    const creator = await prisma.creator.findFirst({
-  where: { razorpaySubId: sub.id },
-});
 
-if (creator) {
-  await createAlert(
-    creator.id,
-    "subscription_cancelled",
-    "Your ClubMint subscription has been cancelled.",
-    {
-      razorpaySubscriptionId: sub.id,
-      event,
+    const creator = await prisma.creator.findFirst({
+      where: { razorpaySubId: sub.id },
+    });
+
+    if (creator) {
+      await createAlert(
+        creator.id,
+        "subscription_cancelled",
+        "Your ClubMint subscription has been cancelled.",
+        {
+          razorpaySubscriptionId: sub.id,
+          event,
+        }
+      );
     }
-  );
-}
 
     await prisma.creator.updateMany({
       where: { razorpaySubId: sub.id },
@@ -149,56 +150,106 @@ if (creator) {
         planExpiresAt: new Date(),
       },
     });
-    // 🔑 STEP B: Revoke product access
-await prisma.accessControl.updateMany({
-  where: {
-    subscription: {
-      provider: "razorpay",
-      providerSubscriptionId: sub.id,
-    },
-  },
-  data: {
-    status: "revoked",
-    revokedAt: new Date(),
-  },
-});
 
+    await prisma.accessControl.updateMany({
+      where: {
+        subscription: {
+          provider: "razorpay",
+          providerSubscriptionId: sub.id,
+        },
+      },
+      data: {
+        status: "revoked",
+        revokedAt: new Date(),
+      },
+    });
   }
 
+  /* -------------------------------------------
+     PAYMENT CAPTURED  ✅ LEDGER ENTRY CREATED HERE
+  ------------------------------------------- */
   if (event === "payment.captured") {
-  const payment = payload.payment.entity;
+    const paymentEntity = payload.payment.entity;
 
-  // Update payment record
-  await prisma.payment.updateMany({
-    where: {
-      razorpayOrderId: payment.order_id,
-    },
-    data: {
-      razorpayPaymentId: payment.id,
-      status: "paid",
-    },
-  });
-
-  // 🔑 STEP B: Activate product subscription access
-  const subscription = await prisma.subscription.findFirst({
-    where: {
-      provider: "razorpay",
-      providerSubscriptionId: payment.subscription_id,
-    },
-  });
-
-  if (subscription && subscription.status !== "active") {
-    await prisma.subscription.update({
-      where: { id: subscription.id },
-      data: { status: "active" },
+    const payment = await prisma.payment.findFirst({
+      where: { razorpayOrderId: paymentEntity.order_id },
     });
 
-    await createAccessForProductSubscription(subscription.id);
+    if (!payment) return res.sendStatus(200);
+
+    // Idempotency: do NOT double-create earnings
+    const existing = await prisma.creatorEarning.findFirst({
+      where: { paymentId: payment.id },
+    });
+
+    if (!existing) {
+      const creator = await prisma.creator.findUnique({
+        where: { id: payment.creatorId },
+      });
+
+      const commissionPct =
+        creator?.commissionPct ?? PLATFORM_FEE_FALLBACK;
+
+      const gross = paymentEntity.amount; // paise
+      const platformFee = Math.floor(
+        (gross * commissionPct) / 100
+      );
+      const netAmount = gross - platformFee;
+
+      await prisma.creatorEarning.create({
+        data: {
+          creatorId: payment.creatorId,
+          paymentId: payment.id,
+          grossAmount: gross,
+          platformFee,
+          netAmount,
+        },
+      });
+    }
+
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        razorpayPaymentId: paymentEntity.id,
+        status: "paid",
+      },
+    });
+
+    const subscription = await prisma.subscription.findFirst({
+      where: {
+        provider: "razorpay",
+        providerSubscriptionId: paymentEntity.subscription_id,
+      },
+    });
+
+    if (subscription && subscription.status !== "active") {
+      await prisma.subscription.update({
+        where: { id: subscription.id },
+        data: { status: "active" },
+      });
+
+      await createAccessForProductSubscription(subscription.id);
+    }
   }
-}
 
+  /* -------------------------------------------
+     PAYMENT REFUNDED → LEDGER REVERSED
+  ------------------------------------------- */
+  if (event === "payment.refunded") {
+    const paymentEntity = payload.payment.entity;
 
-
+    await prisma.creatorEarning.updateMany({
+      where: {
+        payment: {
+          razorpayPaymentId: paymentEntity.id,
+        },
+        status: "PENDING",
+      },
+      data: {
+        status: "REVERSED",
+      },
+    });
+  }
 
   res.sendStatus(200);
 });
