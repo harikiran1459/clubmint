@@ -22,30 +22,36 @@ export default function PayoutsPage() {
       return};
 
     async function load() {
-      const [earningsRes, txRes] = await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/stats/creator/earnings`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/payouts/transactions`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/payouts/history`, {
-  headers: { Authorization: `Bearer ${token}` },
-}).then((r) => r.json())
-  .then((json) => {
-    if (json.ok) setPayouts(json.payouts);
-  }),
-      ]);
+  try {
+    const token = (session?.user as any)?.accessToken;
+    if (!token) return;
 
-      const earningsJson = await earningsRes.json();
-      const txJson = await txRes.json();
+    const [earningsRes, txRes, payoutsRes] = await Promise.all([
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/stats/creator/earnings`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/payouts/transactions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/payouts/history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    ]);
 
-      if (earningsJson.ok) setData(earningsJson);
-      if (txJson.ok) setTransactions(txJson.payments);
-      
+    const earningsJson = await earningsRes.json();
+    const txJson = await txRes.json();
+    const payoutsJson = await payoutsRes.json();
 
-      setLoading(false);
-    }
+    if (earningsJson.ok) setData(earningsJson);
+    if (txJson.ok) setTransactions(txJson.payments);
+    if (payoutsJson.ok) setPayouts(payoutsJson.payouts);
+  } catch (err) {
+    console.error("❌ Failed to load payouts page", err);
+  } finally {
+    setLoading(false);
+  }
+}
+
 
     load();
   }, [status, session]);

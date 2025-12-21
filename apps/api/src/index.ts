@@ -37,8 +37,10 @@ const PORT = process.env.PORT || 3001;
 console.log("JWT_SECRET =", process.env.JWT_SECRET);
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://clubmint-web.onrender.com",
   "https://theclubmint.com",
+  "https://api.theclubmint.com",
+  "https://app.theclubmint.com",
+   "https://clubmint-web.onrender.com",
 ];
 
 app.use(

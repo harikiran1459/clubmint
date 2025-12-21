@@ -108,6 +108,15 @@ router.get("/creator/overview", requireAuth, async (req, res) => {
         : pendingAccess > 0
         ? "warning"
         : "ok";
+if (!creator) {
+  return res.json({
+    ok: true,
+    revenue: { netThisMonth: 0, mrr: 0, commissionPaid: 0 },
+    subscribers: { active: 0, newThisWeek: 0, churnedThisMonth: 0 },
+    products: { topProduct: null },
+    automation: { telegramStatus: "error", pendingActions: 0 },
+  });
+}
 
     /* -----------------------------
        RESPONSE
@@ -150,8 +159,9 @@ router.get("/creator/subscribers", requireAuth, async (req, res) => {
   });
 
   if (!creator) {
-    return res.status(404).json({ error: "Creator not found" });
-  }
+  return res.json({ ok: true, subscribers: [] });
+}
+
 
   const subs = await prisma.subscription.findMany({
     where: {
@@ -197,8 +207,17 @@ router.get("/creator/automation-health", requireAuth, async (req, res) => {
   });
 
   if (!creator) {
-    return res.status(404).json({ error: "Creator not found" });
-  }
+  return res.json({
+    ok: true,
+    metrics: {
+      totalActions: 0,
+      failures: 0,
+      healthy: true,
+      lastEventAt: null,
+    },
+  });
+}
+
 
   const logs = await prisma.telegramActivityLog.findMany({
     where: { creatorId: creator.id },
@@ -227,7 +246,13 @@ router.get("/creator/earnings", requireAuth, async (req, res) => {
   });
 
   if (!creator) {
-    return res.status(404).json({ error: "Creator not found" });
+    return res.json({
+      ok: true,
+      totalRevenue: 0,
+      totalCommission: 0,
+      netEarnings: 0,
+      transactions: 0,
+    });
   }
 
   const payments = await prisma.payment.findMany({
@@ -242,12 +267,14 @@ router.get("/creator/earnings", requireAuth, async (req, res) => {
   const netEarnings = payments.reduce((s, p) => s + p.creatorAmount, 0);
 
   res.json({
+    ok: true,
     totalRevenue,
     totalCommission,
     netEarnings,
     transactions: payments.length,
   });
 });
+
 
 
 export default router;
