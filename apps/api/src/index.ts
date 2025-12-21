@@ -6,7 +6,7 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import telegramRoutes from "./routes/telegram";
 import checkoutRouter from "./routes/checkout";
-import { stripeWebhookHandler } from "./stripe/webhook";
+// import { stripeWebhookHandler } from "./stripe/webhook";
 import "./integrations/telegram";
 import creatorRoutes from "./routes/creator";
 import authRoutes from "./routes/auth";
@@ -59,7 +59,7 @@ app.use(
 );
 
 // stripe webhook must use raw body and be defined BEFORE other body parsers or with explicit raw middleware
-app.post("/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookHandler);
+// app.post("/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhookHandler);
 
 // JSON for normal endpoints
 app.use(express.json());
