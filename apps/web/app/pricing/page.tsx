@@ -3,10 +3,6 @@
 
 import PricingCards from "../components/PricingCards";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-
-const router = useRouter();
-export const dynamic = "force-dynamic";
 
 const plans = [
   {
@@ -58,9 +54,9 @@ export default function PricingPage() {
         plans={plans}
         onAction={(key) => {
           if (key === "free") {
-            router.push("/signup");
+            window.location.href = "/signup";
           } else {
-            router.push("/dashboard/billing");
+            window.location.href = "dashboard/billing";
           }
         }}
       />
