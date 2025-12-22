@@ -1,17 +1,26 @@
 import express from "express";
 import { handleTelegramUpdate } from "../integrations/telegram";
-import { strictLimiter } from "../middleware/rateLimit";
 
 const router = express.Router();
 
-router.post("/telegram/webhook", strictLimiter, async (req, res) => {
+/**
+ * Telegram webhook
+ * IMPORTANT:
+ * - NEVER rate limit
+ * - NEVER return non-200
+ * - ALWAYS be fast
+ */
+router.post("/telegram/webhook", async (req, res) => {
   try {
-    await handleTelegramUpdate(req.body);
-    res.status(200).json({ ok: true });
+    // Process update asynchronously
+    handleTelegramUpdate(req.body);
   } catch (err) {
-    console.error("Webhook error:", err);
-    res.status(500).json({ ok: false });
+    // Log but NEVER fail Telegram
+    console.error("Telegram webhook error:", err);
   }
+
+  // Telegram requires 200 OK always
+  res.sendStatus(200);
 });
 
 export default router;

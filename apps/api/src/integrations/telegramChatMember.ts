@@ -1,3 +1,5 @@
+// apps/api/src/integrations/telegramChatMember.ts
+
 import { PrismaClient } from "@prisma/client";
 import fetch from "node-fetch";
 import { logActivity } from "../utils/logActivity";
@@ -5,120 +7,153 @@ import { logActivity } from "../utils/logActivity";
 const prisma = new PrismaClient();
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
-export async function handleChatMemberUpdate(data: any) {
+if (!BOT_TOKEN) {
+  throw new Error("TELEGRAM_BOT_TOKEN is not set");
+}
+
+/* -------------------------------------------------------------
+   TELEGRAM API HELPER
+------------------------------------------------------------- */
+async function tg(method: string, body: any) {
+  return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/* -------------------------------------------------------------
+   MAIN HANDLER
+------------------------------------------------------------- */
+export async function handleChatMemberUpdate(update: any) {
   try {
-    const chat = data.chat;
-    const change = data.new_chat_member;
-    const user = change?.user;
+    const chat = update.chat;
+    const oldMember = update.old_chat_member;
+    const newMember = update.new_chat_member;
 
-    if (!chat || !user) return;
-    if (user.is_bot) return;
+    if (!chat || !oldMember || !newMember) return;
+    if (newMember.user?.is_bot) return;
 
-    const tgUserId = BigInt(user.id);
+    const tgUserId = BigInt(newMember.user.id);
+    const tgGroupId = BigInt(chat.id);
 
-    // 1️⃣ Find the group in DB
+    const oldStatus = oldMember.status;
+    const newStatus = newMember.status;
+
+    // Only care about joins / permissions changes
+    if (oldStatus === newStatus) return;
+
+    /* ---------------------------------------------------------
+       1️⃣ Resolve group → creator
+    --------------------------------------------------------- */
     const creatorGroup = await prisma.telegramGroup.findUnique({
-      where: { tgGroupId: BigInt(chat.id) }
+      where: { tgGroupId },
     });
 
-    if (!creatorGroup) return;
+    if (!creatorGroup || !creatorGroup.creatorId) return;
 
     const creatorId = creatorGroup.creatorId;
 
-    // 2️⃣ Identify the Telegram user
+    /* ---------------------------------------------------------
+       2️⃣ Resolve Telegram user
+    --------------------------------------------------------- */
     const telegramUser = await prisma.telegramUser.findUnique({
-      where: { tgUserId }
+      where: { tgUserId },
     });
 
+    // Not verified → restrict (NOT kick)
     if (!telegramUser) {
-      await logActivity({
-        creatorId,
-        groupId: creatorGroup.id,
-        tgUserId,
-        event: "kick",
-        reason: "unverified_user"
-      });
+      if (newStatus !== "restricted" && newStatus !== "left") {
+        await tg("restrictChatMember", {
+          chat_id: tgGroupId.toString(),
+          user_id: tgUserId.toString(),
+          permissions: {
+            can_send_messages: false,
+            can_send_media_messages: false,
+            can_send_polls: false,
+            can_send_other_messages: false,
+            can_add_web_page_previews: false,
+          },
+        });
 
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/kickChatMember`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chat.id,
-          user_id: user.id
-        })
-      });
-
+        await logActivity({
+          creatorId,
+          groupId: creatorGroup.id,
+          tgUserId,
+          event: "restricted",
+          reason: "telegram_not_verified",
+        });
+      }
       return;
     }
 
-    // 3️⃣ Check for active subscription
+    /* ---------------------------------------------------------
+       3️⃣ Check active subscription
+    --------------------------------------------------------- */
     const activeSub = await prisma.subscription.findFirst({
       where: {
         userId: telegramUser.userId,
         status: "active",
-        product: { creatorId }
+        product: {
+          creatorId,
+          telegramGroups: {
+            some: { id: creatorGroup.id },
+          },
+        },
       },
-      include: { product: { include: { telegramGroups: true } } }
     });
 
+    // No valid subscription → restrict
     if (!activeSub) {
+      if (newStatus !== "restricted" && newStatus !== "left") {
+        await tg("restrictChatMember", {
+          chat_id: tgGroupId.toString(),
+          user_id: tgUserId.toString(),
+          permissions: {
+            can_send_messages: false,
+            can_send_media_messages: false,
+            can_send_polls: false,
+            can_send_other_messages: false,
+            can_add_web_page_previews: false,
+          },
+        });
+
+        await logActivity({
+          creatorId,
+          groupId: creatorGroup.id,
+          tgUserId,
+          event: "restricted",
+          reason: "no_active_subscription",
+        });
+      }
+      return;
+    }
+
+    /* ---------------------------------------------------------
+       4️⃣ Allow user if subscription valid
+    --------------------------------------------------------- */
+    if (newStatus === "restricted") {
+      await tg("restrictChatMember", {
+        chat_id: tgGroupId.toString(),
+        user_id: tgUserId.toString(),
+        permissions: {
+          can_send_messages: true,
+          can_send_media_messages: true,
+          can_send_polls: true,
+          can_send_other_messages: true,
+          can_add_web_page_previews: true,
+        },
+      });
+
       await logActivity({
         creatorId,
         groupId: creatorGroup.id,
         tgUserId,
-        event: "kick",
-        reason: "no_active_subscription"
+        event: "allowed",
+        reason: "valid_subscription",
       });
-
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/kickChatMember`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chat.id,
-          user_id: user.id
-        })
-      });
-
-      return;
     }
-
-    // 4️⃣ Check if product is mapped to this group
-    const allowed = activeSub.product.telegramGroups.some(
-      (g) => g.id === creatorGroup.id
-    );
-
-    if (!allowed) {
-      await logActivity({
-        creatorId,
-        groupId: creatorGroup.id,
-        tgUserId,
-        event: "kick",
-        reason: "product_not_mapped_to_group"
-      });
-
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/kickChatMember`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chat.id,
-          user_id: user.id
-        })
-      });
-
-      return;
-    }
-
-    // 5️⃣ Allow + log
-    await logActivity({
-      creatorId,
-      groupId: creatorGroup.id,
-      tgUserId,
-      event: "allowed",
-      reason: "valid_subscription"
-    });
-
-    console.log(`✅ Allowed user ${user.id}`);
   } catch (err) {
-    console.error("chat_member handler error:", err);
+    console.error("telegramChatMember error:", err);
   }
 }

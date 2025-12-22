@@ -9,6 +9,7 @@ import { Send } from "lucide-react";
 export default function IntegrationsPage() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
+  
 
   const [verificationCode, setVerificationCode] = useState("");
   const [requestingCode, setRequestingCode] = useState(false);
@@ -18,6 +19,14 @@ export default function IntegrationsPage() {
   const [loadingCreator, setLoadingCreator] = useState(true);
   const [loading, setLoading] = useState(true);
   const [groupStats, setGroupStats] = useState<Record<string, any>>({});
+  const [cooldown, setCooldown] = useState(0);
+
+useEffect(() => {
+  if (cooldown === 0) return;
+  const t = setTimeout(() => setCooldown(cooldown - 1), 1000);
+  return () => clearTimeout(t);
+}, [cooldown]);
+
   const authHeaders = () => ({
   Authorization: `Bearer ${session?.user?.accessToken}`,
 });
@@ -32,11 +41,6 @@ export default function IntegrationsPage() {
 
   if (!session) {
     router.replace("/login");
-    return;
-  }
-
-  if (!session.user?.creatorId) {
-    router.replace("/my-access");
     return;
   }
 }, [sessionStatus, session]);
@@ -61,7 +65,7 @@ const userId = session?.user.userId;
     (async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/telegram/status/${userId}`, { headers: authHeaders() }
+          `${process.env.NEXT_PUBLIC_API_URL}/telegram/status`, { headers: authHeaders() }
         );
         const json = await res.json();
         setTelegramStatus(json);
@@ -80,7 +84,7 @@ const userId = session?.user.userId;
     (async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/telegram/groups/${creatorId}`, { headers: authHeaders() }
+          `${process.env.NEXT_PUBLIC_API_URL}/telegram/groups`, { headers: authHeaders() }
         );
         const json = await res.json();
 
@@ -103,7 +107,7 @@ const userId = session?.user.userId;
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/telegram/disconnect/${userId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/telegram/disconnect`,
         { method: "POST", headers: authHeaders()  }
       );
 
@@ -156,9 +160,9 @@ async function loadGroupStats(tgGroupId: string) {
 useEffect(() => {
   if (groups.length === 0) return;
 
-  groups.forEach((g: any) => {
-    loadGroupStats(g.tgGroupId);
-  });
+  groups
+  .filter((g) => g.isConnected)
+  .forEach((g) => loadGroupStats(g.tgGroupId));
 }, [groups]);
 
 
@@ -183,6 +187,7 @@ useEffect(() => {
       const json = await res.json();
       if (json.ok) {
         setVerificationCode(json.code);
+        setCooldown(20); 
       }
     } catch (err) {
       console.error("Code request error:", err);
@@ -199,6 +204,15 @@ useEffect(() => {
   }
 
   const telegramUser = telegramStatus?.telegramUser;
+  if (!telegramUser) {
+  return (
+    <div className="chart-card">
+      <p className="muted">
+        Connect your Telegram account to manage groups.
+      </p>
+    </div>
+  );
+}
 
   // =============================================================
   // UI BELOW (PREMIUM, CLEAN)
@@ -238,12 +252,17 @@ useEffect(() => {
               <button
                 onClick={generateCode}
                 className="auth-btn"
-                disabled={requestingCode}
+                disabled={requestingCode || cooldown > 0}
                 style={{ marginTop: 14, width: "220px" }}
               >
-                {requestingCode ? "Generating..." : "Generate Telegram Code"}
+                {requestingCode
+    ? "Generating..."
+    : cooldown > 0
+    ? `Retry in ${cooldown}s`
+    : "Generate Telegram Code"}
               </button>
             )}
+            
 
             {verificationCode && (
               <div className="chart-card p-4">
@@ -282,13 +301,14 @@ useEffect(() => {
           <p className="muted mt-3">No groups linked yet.</p>
         ) : (
           <div className="space-y-4 mt-4">
-            {groups.map((g) => (
+            {groups.map(g => (
+              
               <motion.div
                 key={g.id}
                 whileHover={{ scale: 1.01 }}
                 className="chart-card p-4"
               >
-                
+
                 <p className="font-semibold text-lg">
                   {g.title || "Unnamed Group"}
                 </p>
@@ -355,7 +375,7 @@ useEffect(() => {
                         </button>
 
                         {/* TEST MESSAGE */}
-                        <button
+                        <button disabled={!groupStats[g.tgGroupId]?.botPermissions && (groupStats[g.tgGroupId]?.botStatus !== "administrator")}
                           onClick={async () => {
                             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/telegram/group-test-message`, {
                               method: "POST",
@@ -364,16 +384,20 @@ useEffect(() => {
                             });
                             alert("Test message sent!");
                           }}
-                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
+                          className={`px-3 py-1 text-white text-sm rounded-lg ${
+    (groupStats[g.tgGroupId]?.botPermissions && (groupStats[g.tgGroupId]?.botStatus === "administrator") )? "bg-blue-600" : "bg-gray-400 cursor-not-allowed"
+  }`}
                         >
                           Test Bot Access
                         </button>
 
                         {/* DISCONNECT */}
                         {g.isConnected && (
-                          <button
+                          <button disabled={!groupStats[g.tgGroupId]?.botPermissions && (groupStats[g.tgGroupId]?.botStatus !== "administrator")}
                             onClick={() => disconnectGroup(g.tgGroupId)}
-                            className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg"
+                            className={`px-3 py-1 text-white text-sm rounded-lg ${
+    (groupStats[g.tgGroupId]?.botPermissions && (groupStats[g.tgGroupId]?.botStatus === "administrator") ) ? "bg-red-600" : "bg-gray-400 cursor-not-allowed"
+  }`}
                           >
                             Disconnect
                           </button>

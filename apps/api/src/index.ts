@@ -4,7 +4,7 @@ import path from "path";
 import dotenv from "dotenv";
 import bodyParser from "body-parser";
 import cors from "cors";
-import telegramRoutes from "./routes/telegram";
+import telegramRoutes from "./routes/telegram-dashboard";
 import checkoutRouter from "./routes/checkout";
 // import { stripeWebhookHandler } from "./stripe/webhook";
 import "./integrations/telegram";

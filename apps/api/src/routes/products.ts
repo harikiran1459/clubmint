@@ -1,14 +1,8 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { requireAuth } from "../middleware/auth";
-import Stripe from "stripe";
 import { CLUBMINT_PLANS } from "../config/plans";
 import { PLAN_LIMITS } from "../config/planLimits";
-
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2022-11-15",
-});
 
 
 const prisma = new PrismaClient();
@@ -43,10 +37,8 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 /**
- * POST /products
- * Create product for logged-in creator
- */
-router.post("/", requireAuth, async (req, res) => {
+ * POST /products */
+ router.post("/", requireAuth, async (req, res) => {
   try {
     const userId = req.userId;
     const { title, description, priceCents, billingInterval } = req.body;
@@ -59,10 +51,9 @@ router.post("/", requireAuth, async (req, res) => {
     }
 
     const creator = await prisma.creator.findUnique({
-  where: { userId },
-  include: { products: true },
-});
-
+      where: { userId },
+      include: { products: true },
+    });
 
     if (!creator) {
       return res.status(400).json({
@@ -70,20 +61,21 @@ router.post("/", requireAuth, async (req, res) => {
         error: "Creator not found",
       });
     }
+
     const planConfig = CLUBMINT_PLANS[creator.plan];
-const maxProducts = planConfig.features.products;
+    const maxProducts = planConfig.features.products;
 
-if (
-  Number.isFinite(maxProducts) &&
-  creator.products.length >= maxProducts
-) {
-  return res.status(403).json({
-    ok: false,
-    error: `Your ${planConfig.name} plan allows only ${maxProducts} products. Upgrade to add more.`,
-  });
-}
+    if (
+      Number.isFinite(maxProducts) &&
+      creator.products.length >= maxProducts
+    ) {
+      return res.status(403).json({
+        ok: false,
+        error: `Your ${planConfig.name} plan allows only ${maxProducts} products. Upgrade to add more.`,
+      });
+    }
 
-
+    // ✅ DB-ONLY PRODUCT CREATION (NO STRIPE, NO RAZORPAY)
     const product = await prisma.product.create({
       data: {
         creatorId: creator.id,
@@ -93,25 +85,6 @@ if (
         billingInterval,
       },
     });
-    const stripeProduct = await stripe.products.create({
-  name: title,
-  description: description ?? undefined,
-});
-const stripePrice = await stripe.prices.create({
-  product: stripeProduct.id,
-  currency: "usd",
-  unit_amount: priceCents,
-  recurring: {
-    interval: billingInterval === "year" ? "year" : "month",
-  },
-});
-await prisma.product.update({
-  where: { id: product.id },
-  data: {
-    stripePriceId: stripePrice.id,
-  },
-});
-
 
     return res.json({ ok: true, product });
   } catch (err) {
@@ -119,6 +92,7 @@ await prisma.product.update({
     return res.status(500).json({ ok: false });
   }
 });
+
 
 /**
  * DELETE /products/:id
