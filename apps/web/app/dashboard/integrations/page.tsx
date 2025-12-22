@@ -204,15 +204,15 @@ useEffect(() => {
   }
 
   const telegramUser = telegramStatus?.telegramUser;
-  if (!telegramUser) {
-  return (
-    <div className="chart-card">
-      <p className="muted">
-        Connect your Telegram account to manage groups.
-      </p>
-    </div>
-  );
-}
+//   if (!telegramUser) {
+//   return (
+//     <div className="chart-card">
+//       <p className="muted">
+//         Connect your Telegram account to manage groups.
+//       </p>
+//     </div>
+//   );
+// }
 
   // =============================================================
   // UI BELOW (PREMIUM, CLEAN)
