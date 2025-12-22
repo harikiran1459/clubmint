@@ -87,6 +87,36 @@ export async function handleChatMemberUpdate(update: any) {
       return;
     }
 
+    if (
+  update.new_chat_member.user?.is_bot &&
+  update.new_chat_member.user.id.toString() === process.env.TELEGRAM_BOT_ID
+) {
+  await await prisma.telegramGroup.upsert({
+  where: { tgGroupId },
+  create: {
+    tgGroupId,
+    inviteLink: "",
+    creator: {
+      connect: { id: creatorId },
+    },
+    title: chat.title ?? null,
+    username: chat.username ?? null,
+    type: chat.type ?? null,
+    isConnected: true,
+  },
+  update: {
+    title: chat.title ?? null,
+    username: chat.username ?? null,
+    type: chat.type ?? null,
+    isConnected: true,
+  },
+});
+
+
+  return;
+}
+
+
     /* ---------------------------------------------------------
        3️⃣ Check active subscription
     --------------------------------------------------------- */
