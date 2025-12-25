@@ -4,79 +4,48 @@ import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Send } from "lucide-react";
+import {
+  Send,
+  Plus,
+  CheckCircle,
+  AlertTriangle,
+  RefreshCw,
+  Layers,
+} from "lucide-react";
+
+type TelegramGroup = {
+  id: string;
+  tgGroupId: string;
+  title?: string;
+  username?: string;
+  type?: string;
+  isConnected: boolean;
+};
 
 export default function IntegrationsPage() {
   const router = useRouter();
-  const { data: session, status: sessionStatus } = useSession();
-  
+  const { data: session, status } = useSession();
 
-  const [verificationCode, setVerificationCode] = useState("");
-  const [requestingCode, setRequestingCode] = useState(false);
-  const [telegramStatus, setTelegramStatus] = useState<any>(null);
-
-  const [groups, setGroups] = useState<any[]>([]);
-  const [loadingCreator, setLoadingCreator] = useState(true);
+  const [groups, setGroups] = useState<TelegramGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [groupStats, setGroupStats] = useState<Record<string, any>>({});
-  const [cooldown, setCooldown] = useState(0);
-
-useEffect(() => {
-  if (cooldown === 0) return;
-  const t = setTimeout(() => setCooldown(cooldown - 1), 1000);
-  return () => clearTimeout(t);
-}, [cooldown]);
 
   const authHeaders = () => ({
-  Authorization: `Bearer ${session?.user?.accessToken}`,
-});
-
-
+    Authorization: `Bearer ${session?.user?.accessToken}`,
+  });
 
   // ----------------------------------------------------
-  // SESSION CHECK
+  // SESSION GUARD
   // ----------------------------------------------------
   useEffect(() => {
-  if (sessionStatus === "loading") return;
+    if (status === "loading") return;
+    if (!session) router.replace("/login");
+  }, [status, session]);
 
-  if (!session) {
-    router.replace("/login");
-    return;
-  }
-}, [sessionStatus, session]);
-
-const creatorId = session?.user.creatorId;
-const userId = session?.user.userId;
+  const creatorId = session?.user?.creatorId;
 
   // ----------------------------------------------------
-  // LOAD CREATOR PROFILE
-  // ---------------------------------------------------- 
-
-  // ----------------------------------------------------
-  // REDIRECT IF CREATOR DOES NOT EXIST
-  // ----------------------------------------------------
-
-  // ----------------------------------------------------
-  // LOAD BASIC TELEGRAM STATUS (account)
-  // ----------------------------------------------------
-  useEffect(() => {
-    if (!userId || !creatorId) return;
-
-    (async () => {
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/telegram/status`, { headers: authHeaders() }
-        );
-        const json = await res.json();
-        setTelegramStatus(json);
-      } catch (err) {
-        console.error("Failed to load Telegram status:", err);
-      }
-    })();
-  }, [userId, creatorId]);
-
-  // ----------------------------------------------------
-  // LOAD LINKED GROUPS
+  // LOAD TELEGRAM GROUPS
   // ----------------------------------------------------
   useEffect(() => {
     if (!creatorId) return;
@@ -84,15 +53,13 @@ const userId = session?.user.userId;
     (async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/telegram/groups`, { headers: authHeaders() }
+          `${process.env.NEXT_PUBLIC_API_URL}/telegram/groups/${creatorId}`,
+          { headers: authHeaders() }
         );
         const json = await res.json();
-
-        if (json.ok) {
-          setGroups(json.groups);
-        }
+        if (json.ok) setGroups(json.groups);
       } catch (err) {
-        console.error("Group load error:", err);
+        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -100,320 +67,200 @@ const userId = session?.user.userId;
   }, [creatorId]);
 
   // ----------------------------------------------------
-  // DISCONNECT TELEGRAM ACCOUNT
+  // LOAD GROUP STATS
   // ----------------------------------------------------
-  async function handleDisconnect() {
-    if (!userId) return;
-
+  async function loadGroupStats(tgGroupId: string) {
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/telegram/disconnect`,
-        { method: "POST", headers: authHeaders()  }
+        `${process.env.NEXT_PUBLIC_API_URL}/telegram/group-stats/${tgGroupId}`,
+        { headers: authHeaders() }
       );
-
       const json = await res.json();
       if (json.ok) {
-        window.location.reload();
+        setGroupStats((p) => ({ ...p, [tgGroupId]: json }));
       }
-    } catch (err) {
-      console.error("Disconnect error:", err);
-    }
+    } catch {}
   }
 
-  // ----------------------------------------------------
-  // DISCONNECT SINGLE GROUP
-  // ----------------------------------------------------
-  async function disconnectGroup(tgGroupId: string) {
-    try {
-      await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/telegram/group/${tgGroupId}/disconnect`,
-        { method: "PATCH", headers: authHeaders() }
-      );
-      setGroups((prev) =>
-        prev.map((g) =>
-          g.tgGroupId === tgGroupId ? { ...g, isConnected: false } : g
-        )
-      );
-    } catch (err) {
-      console.error("Group disconnect error:", err);
-    }
-  }
+  useEffect(() => {
+    groups.forEach((g) => g.isConnected && loadGroupStats(g.tgGroupId));
+  }, [groups]);
 
-async function loadGroupStats(tgGroupId: string) {
-  try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/telegram/group-stats/${tgGroupId}`, { headers: authHeaders() }
-    );
-    const json = await res.json();
-
-    if (json.ok) {
-      setGroupStats((prev) => ({
-        ...prev,
-        [tgGroupId]: json,
-      }));
-    }
-  } catch (err) {
-    console.error("Stats load failed", err);
-  }
-}
-
-useEffect(() => {
-  if (groups.length === 0) return;
-
-  groups
-  .filter((g) => g.isConnected)
-  .forEach((g) => loadGroupStats(g.tgGroupId));
-}, [groups]);
-
-
-  // ----------------------------------------------------
-  // GENERATE VERIFICATION CODE
-  // ----------------------------------------------------
-  async function generateCode() {
-    if (!userId || !creatorId) return alert("Creator not loaded yet");
-
-    setRequestingCode(true);
-
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/telegram/request-code`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({ userId, creatorId }),
-        }
-      );
-
-      const json = await res.json();
-      if (json.ok) {
-        setVerificationCode(json.code);
-        setCooldown(20); 
-      }
-    } catch (err) {
-      console.error("Code request error:", err);
-    }
-
-    setRequestingCode(false);
-  }
-
-  // ----------------------------------------------------
-  // LOADING SCREEN
-  // ----------------------------------------------------
   if (loading) {
-    return <div className="no-data">Loading premium integration panel…</div>;
+    return <div className="no-data">Loading integrations…</div>;
   }
 
-  const telegramUser = telegramStatus?.telegramUser;
-//   if (!telegramUser) {
-//   return (
-//     <div className="chart-card">
-//       <p className="muted">
-//         Connect your Telegram account to manage groups.
-//       </p>
-//     </div>
-//   );
-// }
-
-  // =============================================================
-  // UI BELOW (PREMIUM, CLEAN)
-  // =============================================================
+  // ====================================================
+  // UI
+  // ====================================================
   return (
-    <div>
+    <div className="space-y-8">
       <h1 className="dashboard-title">Integrations</h1>
 
-      {/* TELEGRAM ACCOUNT */}
+      {/* ================================================= */}
+      {/* TELEGRAM PLATFORM CARD */}
+      {/* ================================================= */}
       <motion.div
-        initial={{ opacity: 0, y: 15 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         className="chart-card"
       >
-        <h2 className="chart-title">
-          <Send size={20} color="#a855f7" /> Telegram Account
-        </h2>
+        <div className="flex items-center gap-3 mb-3">
+          <Send size={20} className="text-purple-500" />
+          <h2 className="chart-title">Telegram</h2>
+        </div>
 
-        {telegramUser ? (
-          <div className="space-y-3">
-            <p className="text-gray-700">Connected as:</p>
-            <p className="font-semibold text-lg">@{telegramUser.tgUsername}</p>
-            <p className="text-sm text-gray-500">
-              Telegram User ID: {telegramUser.tgUserId}
-            </p>
+        <p className="text-sm text-gray-500 mb-4">
+          Automatically manage paid Telegram groups. Subscribers are added and
+          removed based on their active subscription — no manual work required.
+        </p>
 
-            <button
-              onClick={handleDisconnect}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg shadow hover:bg-red-700 transition"
-            >
-              Disconnect Telegram
-            </button>
-          </div>
-        ) : (
-          <div>
-            {!verificationCode && (
-              <button
-                onClick={generateCode}
-                className="auth-btn"
-                disabled={requestingCode || cooldown > 0}
-                style={{ marginTop: 14, width: "220px" }}
-              >
-                {requestingCode
-    ? "Generating..."
-    : cooldown > 0
-    ? `Retry in ${cooldown}s`
-    : "Generate Telegram Code"}
-              </button>
-            )}
-            
+        {/* INSTRUCTIONS */}
+        <div className="grid md:grid-cols-3 gap-4 mb-6">
+          <Instruction
+            step="1"
+            icon={<Plus />}
+            title="Invite the bot"
+            desc="Add the ClubMint bot to your Telegram group as an admin."
+          />
+          <Instruction
+            step="2"
+            icon={<Layers />}
+            title="Group appears here"
+            desc="Once added, the group will automatically show up below."
+          />
+          <Instruction
+            step="3"
+            icon={<CheckCircle />}
+            title="Map to a product"
+            desc="Link the group to a paid product to enable auto-access."
+          />
+        </div>
 
-            {verificationCode && (
-              <div className="chart-card p-4">
-                <p className="muted">Send this code to the Telegram bot:</p>
-                <p className="text-3xl font-bold mt-2">{verificationCode}</p>
-
-                <a
-                  href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}`}
-                  target="_blank"
-                >
-                  <button className="auth-btn mt-3">Open Telegram Bot</button>
-                </a>
-              </div>
-            )}
-          </div>
-        )}
-      </motion.div>
-
-      {/* TELEGRAM GROUPS */}
-      <motion.div
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="chart-card mt-6"
-      >
-        <h2 className="chart-title">Telegram Groups</h2>
-
-        {/* BOT INVITE SHORTCUT */}
+        {/* INVITE BUTTON */}
         <a
           href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}?startgroup=true`}
           target="_blank"
         >
-          <button className="auth-btn mt-3">Invite Bot to Group</button>
+          <button className="auth-btn">Invite Bot to Telegram Group</button>
         </a>
+      </motion.div>
+
+      {/* ================================================= */}
+      {/* GROUPS */}
+      {/* ================================================= */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="chart-card"
+      >
+        <h2 className="chart-title mb-4">Connected Groups</h2>
 
         {groups.length === 0 ? (
-          <p className="muted mt-3">No groups linked yet.</p>
+          <p className="muted">
+            No Telegram groups detected yet. Invite the bot to a group to begin.
+          </p>
         ) : (
-          <div className="space-y-4 mt-4">
-            {groups.map(g => (
-              
-              <motion.div
-                key={g.id}
-                whileHover={{ scale: 1.01 }}
-                className="chart-card p-4"
-              >
+          <div className="space-y-4">
+            {groups.map((g) => {
+              const stats = groupStats[g.tgGroupId];
+              const healthy =
+                stats?.botStatus === "administrator" &&
+                stats?.botPermissions;
 
-                <p className="font-semibold text-lg">
-                  {g.title || "Unnamed Group"}
-                </p>
-
-                {g.username && (
-                  <p className="text-sm text-gray-500">@{g.username}</p>
-                )}
-
-                <p className="text-sm mt-2">
-                  Group ID: <b>{g.tgGroupId}</b>
-                </p>
-                <p className="text-sm">Type: {g.type}</p>
-
-                {/* Connection Status */}
-                <p
-                  className={`text-sm mt-1 ${
-                    g.isConnected ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  {g.isConnected ? "Connected ✓" : "Disconnected ✕"}
-                </p>
-
-                {/* LIVE STATS */}
-                <div className="mt-3">
-                  {groupStats[g.tgGroupId] ? (
-                    <>
-                      <p className="text-sm">
-                        Members: <b>{groupStats[g.tgGroupId].memberCount}</b>
+              return (
+                <div key={g.id} className="chart-card p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold text-lg">
+                        {g.title || "Unnamed group"}
                       </p>
-
-                      <p className="text-sm">
-                        Bot Status:{" "}
-                        <span
-                          className={
-                            groupStats[g.tgGroupId].botStatus === "administrator"
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }
-                        >
-                          {groupStats[g.tgGroupId].botStatus}
-                        </span>
+                      {g.username && (
+                        <p className="text-sm text-gray-500">@{g.username}</p>
+                      )}
+                      <p className="text-sm mt-1">
+                        Type: {g.type || "unknown"}
                       </p>
+                    </div>
 
-                      <p className="text-sm">
-                        Can Restrict Users:{" "}
-                        <span
-                          className={
-                            groupStats[g.tgGroupId].botPermissions
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }
-                        >
-                          {groupStats[g.tgGroupId].botPermissions ? "YES" : "NO"}
-                        </span>
-                      </p>
+                    {healthy ? (
+                      <span className="flex items-center gap-1 text-green-600 text-sm">
+                        <CheckCircle size={16} /> Active
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-yellow-600 text-sm">
+                        <AlertTriangle size={16} /> Needs admin access
+                      </span>
+                    )}
+                  </div>
 
-                      <div className="flex gap-2 mt-3">
-                        {/* REFRESH BUTTON */}
-                        <button
-                          onClick={() => loadGroupStats(g.tgGroupId)}
-                          className="px-3 py-1 bg-gray-800 text-white text-sm rounded-lg"
-                        >
-                          Refresh Stats
-                        </button>
-
-                        {/* TEST MESSAGE */}
-                        <button disabled={!groupStats[g.tgGroupId]?.botPermissions && (groupStats[g.tgGroupId]?.botStatus !== "administrator")}
-                          onClick={async () => {
-                            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/telegram/group-test-message`, {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json", ...authHeaders() },
-                              body: JSON.stringify({ tgGroupId: g.tgGroupId }),
-                            });
-                            alert("Test message sent!");
-                          }}
-                          className={`px-3 py-1 text-white text-sm rounded-lg ${
-    (groupStats[g.tgGroupId]?.botPermissions && (groupStats[g.tgGroupId]?.botStatus === "administrator") )? "bg-blue-600" : "bg-gray-400 cursor-not-allowed"
-  }`}
-                        >
-                          Test Bot Access
-                        </button>
-
-                        {/* DISCONNECT */}
-                        {g.isConnected && (
-                          <button disabled={!groupStats[g.tgGroupId]?.botPermissions && (groupStats[g.tgGroupId]?.botStatus !== "administrator")}
-                            onClick={() => disconnectGroup(g.tgGroupId)}
-                            className={`px-3 py-1 text-white text-sm rounded-lg ${
-    (groupStats[g.tgGroupId]?.botPermissions && (groupStats[g.tgGroupId]?.botStatus === "administrator") ) ? "bg-red-600" : "bg-gray-400 cursor-not-allowed"
-  }`}
-                          >
-                            Disconnect
-                          </button>
-                        )}
-                      </div>
-                    </>
+                  {stats ? (
+                    <div className="text-sm text-gray-600 mt-3">
+                      Members: <b>{stats.memberCount}</b>
+                    </div>
                   ) : (
-                    <p className="text-sm text-gray-500">Fetching stats…</p>
+                    <p className="text-sm text-gray-400 mt-3">
+                      Fetching group status…
+                    </p>
                   )}
-                </div>
 
-              </motion.div>
-            ))}
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => loadGroupStats(g.tgGroupId)}
+                      className="px-3 py-1 bg-gray-800 text-white text-sm rounded-lg flex items-center gap-1"
+                    >
+                      <RefreshCw size={14} /> Refresh
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </motion.div>
+
+      {/* ================================================= */}
+      {/* FUTURE PLATFORMS */}
+      {/* ================================================= */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="chart-card opacity-60"
+      >
+        <h2 className="chart-title mb-2">More platforms coming soon</h2>
+        <p className="text-sm text-gray-500">
+          Discord, WhatsApp, Slack and more will be supported using the same
+          automation engine.
+        </p>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ----------------------------------------------------
+   Instruction component
+---------------------------------------------------- */
+function Instruction({
+  step,
+  icon,
+  title,
+  desc,
+}: {
+  step: string;
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="chart-card p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded">
+          Step {step}
+        </span>
+        <span className="text-purple-500">{icon}</span>
+      </div>
+      <p className="font-semibold">{title}</p>
+      <p className="text-sm text-gray-500 mt-1">{desc}</p>
     </div>
   );
 }
