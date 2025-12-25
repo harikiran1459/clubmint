@@ -241,66 +241,60 @@
 
 
 // apps/api/src/integrations/telegram.ts
-
+// apps/api/src/integrations/telegram.ts
 import "dotenv/config";
+import fetch from "node-fetch";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+if (!BOT_TOKEN) throw new Error("Missing TELEGRAM_BOT_TOKEN");
+
+const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
 /**
- * Telegram webhook entry
- * Handles ONLY group claim codes
+ * Telegram webhook
+ * Sublaunch-style group claiming
  */
 export async function handleTelegramUpdate(update: any) {
   try {
     const msg = update.message;
-    if (!msg) return;
+    if (!msg?.text || !msg.chat) return;
 
-    // -----------------------------------------
-    // 1️⃣ Ignore DMs (private chats)
-    // -----------------------------------------
-    if (msg.chat?.type === "private") {
-      return;
-    }
+    // Ignore private chats
+    if (msg.chat.type === "private") return;
 
-    // -----------------------------------------
-    // 2️⃣ Only process text messages in groups
-    // -----------------------------------------
-    const text = msg.text?.trim();
-    if (!text) return;
+    const text = msg.text.trim();
+    if (!text.startsWith("ClubMint-")) return;
 
     const chat = msg.chat;
     const tgGroupId = BigInt(chat.id);
 
-    // -----------------------------------------
-    // 3️⃣ Match Sublaunch-style claim code
-    // Example: ClubMint-ABC123XYZ
-    // -----------------------------------------
-    if (!text.startsWith("ClubMint-")) {
-      return;
-    }
-
-    const claimCode = text;
-
-    // -----------------------------------------
-    // 4️⃣ Validate claim code
-    // -----------------------------------------
+    // ----------------------------------------
+    // 1️⃣ Fetch valid unused claim
+    // ----------------------------------------
     const claim = await prisma.telegramGroupClaim.findFirst({
       where: {
-        code: claimCode,
+        code: text,
         used: false,
         expiresAt: { gt: new Date() },
       },
     });
 
-    if (!claim) {
-      // Invalid or expired → silently ignore
-      return;
-    }
+    if (!claim) return; // silently ignore invalid code
 
-    // -----------------------------------------
-    // 5️⃣ Create or attach group
-    // -----------------------------------------
+    // ----------------------------------------
+    // 2️⃣ Consume claim FIRST (critical)
+    // ----------------------------------------
+    await prisma.telegramGroupClaim.update({
+      where: { id: claim.id },
+      data: { used: true },
+    });
+
+    // ----------------------------------------
+    // 3️⃣ Attach / create group
+    // ----------------------------------------
     await prisma.telegramGroup.upsert({
       where: { tgGroupId },
       create: {
@@ -311,7 +305,7 @@ export async function handleTelegramUpdate(update: any) {
         username: chat.username ?? null,
         type: chat.type ?? null,
         isConnected: true,
-        claimCode,
+        claimCode: text,
       },
       update: {
         creatorId: claim.creatorId,
@@ -319,20 +313,23 @@ export async function handleTelegramUpdate(update: any) {
         username: chat.username ?? null,
         type: chat.type ?? null,
         isConnected: true,
-        claimCode,
       },
     });
 
-    // -----------------------------------------
-    // 6️⃣ Consume claim
-    // -----------------------------------------
-    await prisma.telegramGroupClaim.update({
-      where: { id: claim.id },
-      data: { used: true },
+    // ----------------------------------------
+    // 4️⃣ Confirmation message (important UX)
+    // ----------------------------------------
+    await fetch(`${API}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chat.id,
+        text: "✅ ClubMint connected successfully.\nYou may now return to your dashboard.",
+      }),
     });
 
     console.log(
-      `✅ Telegram group ${tgGroupId.toString()} claimed by creator ${claim.creatorId}`
+      `✅ Group ${tgGroupId.toString()} claimed by creator ${claim.creatorId}`
     );
   } catch (err) {
     console.error("Telegram webhook error:", err);
