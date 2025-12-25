@@ -25,21 +25,6 @@ export default function DashboardLayout({ children }) {
       router.replace("/login");
       return;
     }
-
-    // 🔑 VERIFY CREATOR FROM BACKEND
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/me/creator-status`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((r) => r.json())
-      .then((json) => {
-        if (!json.ok || !json.isCreator) {
-          router.replace("/my-access");
-        } else {
-          setAllowed(true);
-        }
-      });
   }, [status, session]);
 
   if (!allowed) return null;
