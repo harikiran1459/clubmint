@@ -139,7 +139,7 @@ export default function IntegrationsPage() {
 
         {/* INVITE BUTTON */}
         <a
-          href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}?startgroup=true`}
+          href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}?startgroup=connect_${creatorId}`}
           target="_blank"
         >
           <button className="auth-btn">Invite Bot to Telegram Group</button>
