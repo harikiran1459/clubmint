@@ -10,6 +10,7 @@ import {
   CheckCircle,
   AlertTriangle,
   RefreshCw,
+  Copy,
   Layers,
 } from "lucide-react";
 
@@ -29,6 +30,8 @@ export default function IntegrationsPage() {
   const [groups, setGroups] = useState<TelegramGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [groupStats, setGroupStats] = useState<Record<string, any>>({});
+  const [claimCode, setClaimCode] = useState<string | null>(null);
+  const [requestingCode, setRequestingCode] = useState(false);
 
   const authHeaders = () => ({
     Authorization: `Bearer ${session?.user?.accessToken}`,
@@ -42,29 +45,28 @@ export default function IntegrationsPage() {
     if (!session) router.replace("/login");
   }, [status, session]);
 
-  const creatorId = session?.user?.creatorId;
+  // ----------------------------------------------------
+  // LOAD TELEGRAM GROUPS (creator inferred from token)
+  // ----------------------------------------------------
+  async function loadGroups() {
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/telegram/groups`,
+        { headers: authHeaders() }
+      );
+      const json = await res.json();
+      if (json.ok) setGroups(json.groups);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  // ----------------------------------------------------
-  // LOAD TELEGRAM GROUPS
-  // ----------------------------------------------------
   useEffect(() => {
-    if (!creatorId) return;
-
-    (async () => {
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/telegram/groups/${creatorId}`,
-          { headers: authHeaders() }
-        );
-        const json = await res.json();
-        if (json.ok) setGroups(json.groups);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [creatorId]);
+    if (!session) return;
+    loadGroups();
+  }, [session]);
 
   // ----------------------------------------------------
   // LOAD GROUP STATS
@@ -85,6 +87,25 @@ export default function IntegrationsPage() {
   useEffect(() => {
     groups.forEach((g) => g.isConnected && loadGroupStats(g.tgGroupId));
   }, [groups]);
+
+  // ----------------------------------------------------
+  // GENERATE CLAIM CODE
+  // ----------------------------------------------------
+  async function generateClaimCode() {
+    setRequestingCode(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/telegram/claim-code`,
+        { method: "POST", headers: authHeaders() }
+      );
+      const json = await res.json();
+      if (json.ok) setClaimCode(json.code);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRequestingCode(false);
+    }
+  }
 
   if (loading) {
     return <div className="no-data">Loading integrations…</div>;
@@ -110,9 +131,10 @@ export default function IntegrationsPage() {
           <h2 className="chart-title">Telegram</h2>
         </div>
 
-        <p className="text-sm text-gray-500 mb-4">
-          Automatically manage paid Telegram groups. Subscribers are added and
-          removed based on their active subscription — no manual work required.
+        <p className="text-sm text-gray-500 mb-5">
+          Automatically control access to paid Telegram groups. ClubMint will
+          silently add and remove subscribers based on their active
+          subscription.
         </p>
 
         {/* INSTRUCTIONS */}
@@ -121,29 +143,50 @@ export default function IntegrationsPage() {
             step="1"
             icon={<Plus />}
             title="Invite the bot"
-            desc="Add the ClubMint bot to your Telegram group as an admin."
+            desc="Add the official ClubMint bot to your Telegram group as an admin."
           />
           <Instruction
             step="2"
-            icon={<Layers />}
-            title="Group appears here"
-            desc="Once added, the group will automatically show up below."
+            icon={<Copy />}
+            title="Paste claim code"
+            desc="Send the generated code as a message inside the group."
           />
           <Instruction
             step="3"
-            icon={<CheckCircle />}
-            title="Map to a product"
-            desc="Link the group to a paid product to enable auto-access."
+            icon={<Layers />}
+            title="Group appears here"
+            desc="The group will instantly show up below once verified."
           />
         </div>
 
-        {/* INVITE BUTTON */}
-        <a
-          href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}?startgroup=connect_${creatorId}`}
-          target="_blank"
-        >
-          <button className="auth-btn">Invite Bot to Telegram Group</button>
-        </a>
+        {/* ACTIONS */}
+        <div className="flex flex-wrap gap-3">
+          <a
+            href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}?startgroup=true`}
+            target="_blank"
+          >
+            <button className="auth-btn">Invite Bot to Telegram Group</button>
+          </a>
+
+          <button
+            onClick={generateClaimCode}
+            disabled={requestingCode}
+            className="auth-btn-secondary"
+          >
+            {requestingCode ? "Generating…" : "Generate Claim Code"}
+          </button>
+        </div>
+
+        {claimCode && (
+          <div className="chart-card mt-5 p-4">
+            <p className="text-sm text-gray-500">
+              Paste this message inside your Telegram group:
+            </p>
+            <p className="mt-2 text-lg font-mono font-bold">
+              ClubMint-{claimCode}
+            </p>
+          </div>
+        )}
       </motion.div>
 
       {/* ================================================= */}
@@ -158,7 +201,8 @@ export default function IntegrationsPage() {
 
         {groups.length === 0 ? (
           <p className="muted">
-            No Telegram groups detected yet. Invite the bot to a group to begin.
+            No Telegram groups connected yet. Invite the bot and paste the claim
+            code inside your group.
           </p>
         ) : (
           <div className="space-y-4">
@@ -229,8 +273,8 @@ export default function IntegrationsPage() {
       >
         <h2 className="chart-title mb-2">More platforms coming soon</h2>
         <p className="text-sm text-gray-500">
-          Discord, WhatsApp, Slack and more will be supported using the same
-          automation engine.
+          Discord, WhatsApp, Slack and more will use the same secure access
+          engine.
         </p>
       </motion.div>
     </div>
