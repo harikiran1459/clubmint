@@ -115,6 +115,7 @@ model Creator {
   integrations          IntegrationSettings[]
   affiliates            Affiliate[]
   telegramGroups        TelegramGroup[]
+  telegramGroupClaim    TelegramGroupClaim[]
   telegramVerifications TelegramVerification[]
   telegramActivityLogs  TelegramActivityLog[]
   pages                 CreatorPage[]
@@ -237,11 +238,35 @@ model TelegramGroup {
   title        String?
   username     String?
   type         String? // "supergroup" | "channel"
+  claimCode    String?  @unique
   isConnected  Boolean               @default(true)
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt // 👈 NEW — track changes
   products     Product[]             @relation("ProductGroups")
   activityLogs TelegramActivityLog[]
+}
+
+model TelegramGroupVerification {
+  id        String   @id @default(cuid())
+  creatorId String
+  code      String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  tgGroupId BigInt?
+  createdAt DateTime @default(now())
+}
+
+model TelegramGroupClaim {
+  id        String   @id @default(cuid())
+  creatorId String
+  code      String   @unique
+  used      Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  creator Creator @relation(fields: [creatorId], references: [id])
+
+  @@index([code])
 }
 
 model TelegramVerification {

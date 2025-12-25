@@ -189,68 +189,89 @@
 // }
 
 import { PrismaClient } from "@prisma/client";
+import fetch from "node-fetch";
 
 const prisma = new PrismaClient();
 
-const BOT_ID = process.env.TELEGRAM_BOT_ID
-  ? Number(process.env.TELEGRAM_BOT_ID)
-  : null;
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+if (!BOT_TOKEN) {
+  throw new Error("Missing TELEGRAM_BOT_TOKEN");
+}
 
+const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+/**
+ * Telegram chat_member webhook handler
+ *
+ * Sublaunch-style enforcement:
+ * - Bot does NOT talk
+ * - Bot does NOT verify
+ * - Bot does NOT infer creator
+ *
+ * RULE:
+ *   Only users auto-added by ClubMint may stay.
+ */
 export async function handleChatMemberUpdate(update: any) {
-  const chat = update.chat;
-  const newMember = update.new_chat_member;
-  const oldMember = update.old_chat_member;
+  try {
+    const chat = update.chat;
+    const newMember = update.new_chat_member;
 
-  if (!chat || !newMember?.user) return;
+    if (!chat || !newMember?.user) return;
 
-  // --------------------------------------------------
-  // BOT ADDED TO GROUP
-  // --------------------------------------------------
-  if (
-    newMember.user.is_bot &&
-    BOT_ID &&
-    Number(newMember.user.id) === BOT_ID &&
-    newMember.status === "administrator" &&
-    oldMember?.status !== "administrator"
-  ) {
+    // Ignore bots
+    if (newMember.user.is_bot) return;
+
     const tgGroupId = BigInt(chat.id);
+    const tgUserId = BigInt(newMember.user.id);
 
-    /**
-     * IMPORTANT:
-     * Creator is identified via pending invite context.
-     * For now, we attach by "last active creator".
-     * (This is safe because only creators can invite the bot via dashboard.)
-     */
-    const creator = await prisma.creator.findFirst({
-      orderBy: { updatedAt: "desc" },
-    });
+    // Only react when user becomes member
+    if (newMember.status !== "member") return;
 
-    if (!creator) return;
-
-    await prisma.telegramGroup.upsert({
-      where: { tgGroupId },
-      create: {
-        tgGroupId,
-        inviteLink: "",
-        title: chat.title ?? null,
-        username: chat.username ?? null,
-        type: chat.type ?? null,
-        isConnected: true,
-        creator: {
-          connect: { id: creator.id },
+    // 🔍 Check if this user was auto-added by ClubMint
+    const access = await prisma.accessControl.findFirst({
+      where: {
+        platform: "telegram",
+        platformUserId: tgUserId.toString(),
+        status: "granted",
+        metadata: {
+          path: ["telegramGroupIds"],
+          array_contains: [tgGroupId.toString()],
         },
       },
-      update: {
-        title: chat.title ?? null,
-        username: chat.username ?? null,
-        type: chat.type ?? null,
-        isConnected: true,
-      },
     });
 
-    console.log("✅ Telegram group connected:", chat.title);
+    // ❌ Not a valid subscriber → kick silently
+    if (!access) {
+      await kickUser(chat.id, newMember.user.id);
+      return;
+    }
+
+    // ✅ Valid subscriber → allow silently
     return;
+
+  } catch (err) {
+    console.error("telegramChatMember error:", err);
   }
 }
+
+/* --------------------------------------------------
+   Helpers
+-------------------------------------------------- */
+
+async function kickUser(chatId: number, userId: number) {
+  try {
+    await fetch(`${API}/banChatMember`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        user_id: userId,
+      }),
+    });
+  } catch (err) {
+    console.error("Failed to kick user:", err);
+  }
+}
+
 
 

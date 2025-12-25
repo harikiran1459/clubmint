@@ -243,73 +243,99 @@
 // apps/api/src/integrations/telegram.ts
 
 import "dotenv/config";
-import TelegramBot from "node-telegram-bot-api";
 import { PrismaClient } from "@prisma/client";
-import { handleChatMemberUpdate } from "./telegramChatMember";
 
 const prisma = new PrismaClient();
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-if (!BOT_TOKEN) {
-  throw new Error("Missing TELEGRAM_BOT_TOKEN");
-}
-
-// ----------------------------------------------------
-// BOT INSTANCE (WEBHOOK ONLY, NO POLLING)
-// ----------------------------------------------------
-export const bot = new TelegramBot(BOT_TOKEN, {
-  polling: false,
-});
-
-// ----------------------------------------------------
-// MAIN TELEGRAM UPDATE HANDLER
-// ----------------------------------------------------
+/**
+ * Telegram webhook entry
+ * Handles ONLY group claim codes
+ */
 export async function handleTelegramUpdate(update: any) {
   try {
-    // ------------------------------------------------
-    // 1️⃣ Bot added / removed / permission change
-    // ------------------------------------------------
-    if (update.my_chat_member || update.chat_member) {
-      await handleChatMemberUpdate(
-        update.my_chat_member ?? update.chat_member
-      );
+    const msg = update.message;
+    if (!msg) return;
+
+    // -----------------------------------------
+    // 1️⃣ Ignore DMs (private chats)
+    // -----------------------------------------
+    if (msg.chat?.type === "private") {
       return;
     }
 
-    // ------------------------------------------------
-    // 2️⃣ Ignore ALL messages
-    // ------------------------------------------------
-    // Telegram is silent infrastructure.
-    // No commands, no verification, no replies.
-    return;
+    // -----------------------------------------
+    // 2️⃣ Only process text messages in groups
+    // -----------------------------------------
+    const text = msg.text?.trim();
+    if (!text) return;
+
+    const chat = msg.chat;
+    const tgGroupId = BigInt(chat.id);
+
+    // -----------------------------------------
+    // 3️⃣ Match Sublaunch-style claim code
+    // Example: ClubMint-ABC123XYZ
+    // -----------------------------------------
+    if (!text.startsWith("ClubMint-")) {
+      return;
+    }
+
+    const claimCode = text;
+
+    // -----------------------------------------
+    // 4️⃣ Validate claim code
+    // -----------------------------------------
+    const claim = await prisma.telegramGroupClaim.findFirst({
+      where: {
+        code: claimCode,
+        used: false,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!claim) {
+      // Invalid or expired → silently ignore
+      return;
+    }
+
+    // -----------------------------------------
+    // 5️⃣ Create or attach group
+    // -----------------------------------------
+    await prisma.telegramGroup.upsert({
+      where: { tgGroupId },
+      create: {
+        tgGroupId,
+        creatorId: claim.creatorId,
+        inviteLink: "",
+        title: chat.title ?? null,
+        username: chat.username ?? null,
+        type: chat.type ?? null,
+        isConnected: true,
+        claimCode,
+      },
+      update: {
+        creatorId: claim.creatorId,
+        title: chat.title ?? null,
+        username: chat.username ?? null,
+        type: chat.type ?? null,
+        isConnected: true,
+        claimCode,
+      },
+    });
+
+    // -----------------------------------------
+    // 6️⃣ Consume claim
+    // -----------------------------------------
+    await prisma.telegramGroupClaim.update({
+      where: { id: claim.id },
+      data: { used: true },
+    });
+
+    console.log(
+      `✅ Telegram group ${tgGroupId.toString()} claimed by creator ${claim.creatorId}`
+    );
   } catch (err) {
-    console.error("Telegram update handler error:", err);
+    console.error("Telegram webhook error:", err);
   }
 }
 
-// ----------------------------------------------------
-// WEBHOOK REGISTRATION (ON STARTUP)
-// ----------------------------------------------------
-if (!global.__telegram_bot_started__) {
-  global.__telegram_bot_started__ = true;
-
-  const WEBHOOK_URL = process.env.API_BASE_URL
-    ? `${process.env.API_BASE_URL}/telegram/webhook`
-    : null;
-
-  (async () => {
-    try {
-      if (!WEBHOOK_URL) {
-        console.warn("⚠️ API_BASE_URL missing — webhook not set");
-        return;
-      }
-
-      await bot.setWebHook(WEBHOOK_URL);
-      console.log("🚀 Telegram webhook registered:", WEBHOOK_URL);
-    } catch (err) {
-      console.error("Failed to set Telegram webhook:", err);
-    }
-  })();
-}
-
-export default bot;
