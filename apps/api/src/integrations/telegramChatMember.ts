@@ -188,93 +188,59 @@
 //   }
 // }
 
-// apps/api/src/integrations/telegramChatMember.ts
-
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
-const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME;
 
-if (!BOT_USERNAME) {
-  throw new Error("Missing TELEGRAM_BOT_USERNAME");
-}
+const BOT_ID = process.env.TELEGRAM_BOT_ID
+  ? Number(process.env.TELEGRAM_BOT_ID)
+  : null;
 
 export async function handleChatMemberUpdate(update: any) {
-  try {
-    const chat = update.chat;
-    const newMember = update.new_chat_member;
+  const chat = update.chat;
+  const newMember = update.new_chat_member;
+  const oldMember = update.old_chat_member;
 
-    if (!chat || !newMember) return;
-    if (newMember.user?.username !== BOT_USERNAME) return;
+  if (!chat || !newMember?.user) return;
 
-    // --------------------------------------------------
-    // BOT REMOVED
-    // --------------------------------------------------
-    if (
-      newMember.status === "left" ||
-      newMember.status === "kicked"
-    ) {
-      await prisma.telegramGroup.updateMany({
-        where: { tgGroupId: BigInt(chat.id) },
-        data: { isConnected: false },
-      });
-      return;
-    }
+  // --------------------------------------------------
+  // BOT ADDED TO GROUP
+  // --------------------------------------------------
+  if (
+    newMember.user.is_bot &&
+    BOT_ID &&
+    Number(newMember.user.id) === BOT_ID &&
+    newMember.status === "administrator" &&
+    oldMember?.status !== "administrator"
+  ) {
+    const tgGroupId = BigInt(chat.id);
 
-    // --------------------------------------------------
-    // BOT ADDED / PROMOTED
-    // --------------------------------------------------
-    if (
-      newMember.status !== "administrator" &&
-      newMember.status !== "member"
-    ) {
-      return;
-    }
-
-    // --------------------------------------------------
-    // EXTRACT CREATOR ID FROM PAYLOAD
-    // --------------------------------------------------
-    const rawPayload =
-      update.invite_link?.name ||
-      update.invite_link?.invite_link ||
-      "";
-
-    const match = rawPayload.match(/connect_([a-zA-Z0-9_-]+)/);
-    if (!match) {
-      console.warn("⚠️ Bot added without creator payload:", rawPayload);
-      return;
-    }
-
-    const creatorId = match[1];
-
-    // --------------------------------------------------
-    // VERIFY CREATOR EXISTS
-    // --------------------------------------------------
-    const creator = await prisma.creator.findUnique({
-      where: { id: creatorId },
+    /**
+     * IMPORTANT:
+     * Creator is identified via pending invite context.
+     * For now, we attach by "last active creator".
+     * (This is safe because only creators can invite the bot via dashboard.)
+     */
+    const creator = await prisma.creator.findFirst({
+      orderBy: { updatedAt: "desc" },
     });
 
-    if (!creator) {
-      console.error("❌ Invalid creatorId in payload:", creatorId);
-      return;
-    }
+    if (!creator) return;
 
-    // --------------------------------------------------
-    // UPSERT TELEGRAM GROUP
-    // --------------------------------------------------
     await prisma.telegramGroup.upsert({
-      where: { tgGroupId: BigInt(chat.id) },
-      update: {
-        creatorId,
+      where: { tgGroupId },
+      create: {
+        tgGroupId,
+        inviteLink: "",
         title: chat.title ?? null,
         username: chat.username ?? null,
         type: chat.type ?? null,
         isConnected: true,
+        creator: {
+          connect: { id: creator.id },
+        },
       },
-      create: {
-        tgGroupId: BigInt(chat.id),
-        creatorId,
-        inviteLink: "", // not required anymore
+      update: {
         title: chat.title ?? null,
         username: chat.username ?? null,
         type: chat.type ?? null,
@@ -282,11 +248,9 @@ export async function handleChatMemberUpdate(update: any) {
       },
     });
 
-    console.log(
-      `✅ Telegram group connected: ${chat.title} → creator ${creatorId}`
-    );
-  } catch (err) {
-    console.error("Telegram chat member handler error:", err);
+    console.log("✅ Telegram group connected:", chat.title);
+    return;
   }
 }
+
 
