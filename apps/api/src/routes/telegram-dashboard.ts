@@ -268,7 +268,7 @@ router.get("/status", requireAuth, async (req, res) => {
 /* ======================================================
    2️⃣ GENERATE GROUP CLAIM CODE (SUBLAUNCH STYLE)
 ====================================================== */
-router.post("/generate-claim-code", requireAuth, async (req, res) => {
+router.post("/claim-code", requireAuth, async (req, res) => {
   try {
     const creator = await prisma.creator.findUnique({
       where: { userId: req.userId! },
