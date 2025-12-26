@@ -294,7 +294,7 @@ export async function handleTelegramUpdate(update: any) {
 
     const claim = await prisma.telegramGroupClaim.findFirst({
       where: {
-        code: text,
+        code: normalized,
         used: false,
         expiresAt: { gt: new Date() },
       },
