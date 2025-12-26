@@ -203,52 +203,111 @@ const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 /**
  * Telegram chat_member webhook handler
  *
- * Sublaunch-style enforcement:
- * - Bot does NOT talk
- * - Bot does NOT verify
- * - Bot does NOT infer creator
+ * ENFORCEMENT (new joins only):
+ * - Bot stays silent
+ * - No verification
+ * - No DMs
+ * - No retroactive kicks
  *
  * RULE:
- *   Only users auto-added by ClubMint may stay.
+ *   A user may stay ONLY if they have an ACTIVE subscription
+ *   to a product mapped to this Telegram group.
  */
 export async function handleChatMemberUpdate(update: any) {
   try {
-    const chat = update.chat;
-    const newMember = update.new_chat_member;
+    const chatMember = update.chat_member;
+    if (!chatMember) return;
+
+    const chat = chatMember.chat;
+    const newMember = chatMember.new_chat_member;
+    const oldMember = chatMember.old_chat_member;
 
     if (!chat || !newMember?.user) return;
 
-    // Ignore bots
+    // Ignore bots (including ourselves)
     if (newMember.user.is_bot) return;
+
+    // Only enforce when user JUST joined
+    if (
+      oldMember?.status === "left" &&
+      newMember.status !== "member"
+    ) {
+      return;
+    }
+
+    if (newMember.status !== "member") return;
 
     const tgGroupId = BigInt(chat.id);
     const tgUserId = BigInt(newMember.user.id);
 
-    // Only react when user becomes member
-    if (newMember.status !== "member") return;
-
-    // 🔍 Check if this user was auto-added by ClubMint
-    const access = await prisma.accessControl.findFirst({
-      where: {
-        platform: "telegram",
-        platformUserId: tgUserId.toString(),
-        status: "granted",
-        metadata: {
-          path: ["telegramGroupIds"],
-          array_contains: [tgGroupId.toString()],
+    // --------------------------------------------------
+    // 1️⃣ Find Telegram group
+    // --------------------------------------------------
+    const group = await prisma.telegramGroup.findUnique({
+      where: { tgGroupId },
+      include: {
+        products: {
+          select: { id: true },
         },
       },
     });
 
-    // ❌ Not a valid subscriber → kick silently
-    if (!access) {
+    // Group not managed by ClubMint → ignore
+    if (!group) return;
+
+    // No products mapped → enforcement disabled
+    if (group.products.length === 0) return;
+
+    const productIds = group.products.map((p) => p.id);
+
+    // --------------------------------------------------
+    // 2️⃣ Check ACTIVE subscription
+    // --------------------------------------------------
+    const activeSubscription = await prisma.subscription.findFirst({
+      where: {
+        status: "active",
+        accessControls: {
+          some: {
+            platform: "telegram",
+            platformUserId: tgUserId.toString(),
+            status: "granted",
+          },
+        },
+        productId: {
+          in: productIds,
+        },
+      },
+    });
+
+    // --------------------------------------------------
+    // 3️⃣ Enforce
+    // --------------------------------------------------
+    if (!activeSubscription) {
       await kickUser(chat.id, newMember.user.id);
+
+      // Optional audit log (recommended)
+      await prisma.telegramActivityLog.create({
+        data: {
+          creatorId: group.creatorId,
+          groupId: group.id,
+          tgUserId,
+          event: "kick",
+          reason: "no_active_subscription",
+        },
+      });
+
       return;
     }
 
-    // ✅ Valid subscriber → allow silently
-    return;
-
+    // Allowed → silent allow
+    await prisma.telegramActivityLog.create({
+      data: {
+        creatorId: group.creatorId,
+        groupId: group.id,
+        tgUserId,
+        event: "allowed",
+      },
+    });
   } catch (err) {
     console.error("telegramChatMember error:", err);
   }
@@ -272,6 +331,3 @@ async function kickUser(chatId: number, userId: number) {
     console.error("Failed to kick user:", err);
   }
 }
-
-
-
