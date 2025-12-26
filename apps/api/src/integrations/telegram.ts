@@ -290,9 +290,7 @@ export async function handleTelegramUpdate(update: any) {
     // 1️⃣ Fetch valid unused claim
     // ----------------------------------------
     console.log("📌 RAW TEXT:", JSON.stringify(text));
-console.log("📌 CLAIMS IN DB:", await prisma.telegramGroupClaim.findMany({
-  select: { code: true, used: true, expiresAt: true }
-}));
+    const normalized = text.replace(/^ClubMint-/, "");
 
     const claim = await prisma.telegramGroupClaim.findFirst({
       where: {
@@ -301,6 +299,9 @@ console.log("📌 CLAIMS IN DB:", await prisma.telegramGroupClaim.findMany({
         expiresAt: { gt: new Date() },
       },
     });
+    console.log("📌 CLAIMS IN DB:", await prisma.telegramGroupClaim.findMany({
+  select: { code: true, used: true, expiresAt: true }
+}));
 
     if (!claim) return; // silently ignore invalid code
     console.log("📌 CLAIM MATCH RESULT:", claim);
