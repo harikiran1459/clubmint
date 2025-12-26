@@ -269,8 +269,15 @@ export async function handleTelegramUpdate(update: any) {
     // Ignore private chats
     if (msg.chat.type === "private") return;
 
-    const text = msg.text.trim();
-    if (!text.startsWith("ClubMint-")) return;
+    const rawText = msg.text ?? "";
+    const text = rawText
+      .replace(/\u200B/g, "")   // zero-width space
+      .replace(/\u2011|\u2013|\u2014/g, "-") // normalize dash
+      .trim();
+    if (!text) return;
+    if (!/^ClubMint-[A-Z0-9]{6,}$/.test(text)) {
+      return;
+    }
 
     const chat = msg.chat;
     const tgGroupId = BigInt(chat.id);
@@ -278,6 +285,11 @@ export async function handleTelegramUpdate(update: any) {
     // ----------------------------------------
     // 1️⃣ Fetch valid unused claim
     // ----------------------------------------
+    console.log("📌 RAW TEXT:", JSON.stringify(text));
+console.log("📌 CLAIMS IN DB:", await prisma.telegramGroupClaim.findMany({
+  select: { code: true, used: true, expiresAt: true }
+}));
+
     const claim = await prisma.telegramGroupClaim.findFirst({
       where: {
         code: text,
@@ -287,17 +299,10 @@ export async function handleTelegramUpdate(update: any) {
     });
 
     if (!claim) return; // silently ignore invalid code
+    console.log("📌 CLAIM MATCH RESULT:", claim);
 
     // ----------------------------------------
-    // 2️⃣ Consume claim FIRST (critical)
-    // ----------------------------------------
-    await prisma.telegramGroupClaim.update({
-      where: { id: claim.id },
-      data: { used: true },
-    });
-
-    // ----------------------------------------
-    // 3️⃣ Attach / create group
+    // 2️⃣ Attach / create group
     // ----------------------------------------
     await prisma.telegramGroup.upsert({
       where: { tgGroupId },
@@ -318,6 +323,13 @@ export async function handleTelegramUpdate(update: any) {
         type: chat.type ?? null,
         isConnected: true,
       },
+    });
+     // ----------------------------------------
+    // 3️⃣ Consume claim FIRST (critical)
+    // ----------------------------------------
+    await prisma.telegramGroupClaim.update({
+      where: { id: claim.id },
+      data: { used: true },
     });
 
     // ----------------------------------------
