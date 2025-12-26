@@ -1,4 +1,4 @@
-//packages/shared/telegram.ts
+// packages/shared/telegram.ts
 
 import TelegramBot from "node-telegram-bot-api";
 import fetch from "node-fetch";
@@ -6,117 +6,150 @@ import fetch from "node-fetch";
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   throw new Error("Missing TELEGRAM_BOT_TOKEN");
 }
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
+
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-export const telegramBot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, {
-  polling: false, // worker only sends messages, no polling
+/**
+ * Shared Telegram bot instance
+ * - NO polling
+ * - Used only by workers / helpers
+ */
+export const telegramBot = new TelegramBot(BOT_TOKEN, {
+  polling: false,
 });
 
+/* ============================================================
+   INVITE LINKS (AUTO-JOIN FLOW)
+============================================================ */
+
 /**
- * Creates a fresh Telegram invite link for a group.
+ * Create a single-use invite link for a Telegram group.
+ * Used when granting access to a subscriber.
  */
-export async function createInviteLink(groupId: string): Promise<string> {
+export async function createInviteLink(
+  tgGroupId: bigint
+): Promise<string> {
   try {
-    // create a unique invite link
-    const link = await telegramBot.createChatInviteLink(groupId, {
-      member_limit: 1,       // optional: one-time link
-      creates_join_request: false,
+    const res = await fetch(`${API}/createChatInviteLink`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: Number(tgGroupId),
+        member_limit: 1, // one-time use
+        creates_join_request: false,
+      }),
     });
 
-    // link.invite_link: new versions
-    // link.inviteLink: older versions
-    return (link.invite_link) as string;
+    const json = (await res.json()) as any;
+
+    if (!json.ok || !json.result?.invite_link) {
+      throw new Error(
+        `createInviteLink failed: ${JSON.stringify(json)}`
+      );
+    }
+
+    return json.result.invite_link;
   } catch (err) {
-    console.error("createInviteLink ERROR:", err);
+    console.error("❌ createInviteLink error:", err);
     throw err;
   }
 }
 
-export async function addUserToGroup(groupId: bigint, userId: number) {
-  const res = await fetch(`${API}/inviteChatMember`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: Number(groupId),
-      user_id: userId,
-    }),
-  });
-
-  const data = (await res.json()) as { ok: boolean };
-  if (!data.ok) throw new Error(`Telegram addUserToGroup failed: ${JSON.stringify(data)}`);
-}
+/* ============================================================
+   MESSAGING
+============================================================ */
 
 /**
- * Sends a normal Telegram text message.
+ * Send a Telegram DM.
+ * NOTE:
+ * - Will fail silently if user never started the bot
+ * - That is expected behavior
  */
-export async function sendTelegramMessage(userId: number, text: string) {
-  await fetch(`${API}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: userId,
-      text,
-      parse_mode: "HTML",
-    }),
-  });
+export async function sendTelegramMessage(
+  tgUserId: number,
+  text: string
+) {
+  try {
+    await fetch(`${API}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: tgUserId,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      }),
+    });
+  } catch (err) {
+    console.error("❌ sendTelegramMessage error:", err);
+  }
 }
 
-export async function removeUserFromGroup(groupId: string, userId: string | number) {
+/* ============================================================
+   KICK / REVOKE ACCESS
+============================================================ */
+
+/**
+ * Remove a user from a group.
+ * Implemented as:
+ *   banChatMember → unbanChatMember
+ *
+ * This:
+ * - Removes user immediately
+ * - Allows rejoin later if they pay again
+ */
+export async function kickFromGroup(
+  tgGroupId: bigint,
+  tgUserId: number
+) {
   try {
-    // Some libraries use Number conversion; Telegram API expects integer IDs
-    const chatId = groupId;
-    const tgUserId = Number(userId);
+    // 1️⃣ Ban (kick)
+    const banRes = await fetch(`${API}/banChatMember`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: Number(tgGroupId),
+        user_id: tgUserId,
+      }),
+    });
 
-    // First, kick/ban the user (this removes them)
-    // `kickChatMember` is deprecated in newer Telegram API; use `banChatMember` if available.
-    if (typeof (telegramBot as any).banChatMember === "function") {
-      await (telegramBot as any).banChatMember(chatId, tgUserId);
-    } else if (typeof (telegramBot as any).kickChatMember === "function") {
-      await (telegramBot as any).kickChatMember(chatId, tgUserId);
-    } else {
-      // fallback: call HTTP method via api
-      await (telegramBot as any)._request("banChatMember", { chat_id: chatId, user_id: tgUserId });
+    const banJson = (await banRes.json()) as any;
+    if (!banJson.ok) {
+      throw new Error(
+        `banChatMember failed: ${JSON.stringify(banJson)}`
+      );
     }
 
-    // Optional: unban immediately so they can rejoin after payment is resolved
-    if (typeof (telegramBot as any).unbanChatMember === "function") {
-      await (telegramBot as any).unbanChatMember(chatId, tgUserId);
-    } else {
-      await (telegramBot as any)._request("unbanChatMember", { chat_id: chatId, user_id: tgUserId });
-    }
+    // 2️⃣ Immediately unban (so they can rejoin later)
+    await fetch(`${API}/unbanChatMember`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: Number(tgGroupId),
+        user_id: tgUserId,
+      }),
+    });
 
-    return true;
   } catch (err) {
-    console.error("removeUserFromGroup error:", err);
+    console.error(
+      `❌ kickFromGroup error (group=${tgGroupId}, user=${tgUserId}):`,
+      err
+    );
     throw err;
   }
 }
+
+/* ============================================================
+   TYPES (OPTIONAL EXPORTS)
+============================================================ */
+
+export type TelegramInvite = {
+  tgGroupId: bigint;
+  inviteLink: string;
+};
 
 export type TelegramUser = {
   tgUserId: number;
   tgUsername: string | null;
-  creatorId: string;
 };
-
-export type TelegramGroup = {
-  tgGroupId: number;
-  inviteLink: string;
-  creatorId: string;
-};
-
-export async function kickFromGroup(groupId: bigint, userId: number) {
-  const res = await fetch(`${API}/banChatMember`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: Number(groupId),
-      user_id: userId,
-    }),
-  });
-
-  const data = (await res.json()) as { ok: boolean };
-  if (!data.ok) {
-    throw new Error(`kickFromGroup failed: ${JSON.stringify(data)}`);
-  }
-}

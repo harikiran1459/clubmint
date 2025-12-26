@@ -2,153 +2,94 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { requireAuth } from "../middleware/auth";
 import { CLUBMINT_PLANS } from "../config/plans";
-import { PLAN_LIMITS } from "../config/planLimits";
-
 
 const prisma = new PrismaClient();
 const router = Router();
 
-/**
- * GET /products
- * Get all products for logged-in creator
- */
+/* =====================================================
+   GET /products
+===================================================== */
 router.get("/", requireAuth, async (req, res) => {
-  try {
-    const userId = req.userId;
+  const creator = await prisma.creator.findUnique({
+    where: { userId: req.userId },
+  });
 
-    const creator = await prisma.creator.findUnique({
-      where: { userId },
-    });
+  if (!creator) return res.json({ ok: true, products: [] });
 
-    if (!creator) {
-      return res.json({ ok: true, products: [] });
-    }
+  const products = await prisma.product.findMany({
+    where: { creatorId: creator.id },
+    orderBy: { createdAt: "desc" },
+  });
 
-    const products = await prisma.product.findMany({
-      where: { creatorId: creator.id },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return res.json({ ok: true, products });
-  } catch (err) {
-    console.error("GET /products error:", err);
-    return res.status(500).json({ ok: false });
-  }
+  res.json({ ok: true, products });
 });
 
-/**
- * POST /products */
- router.post("/", requireAuth, async (req, res) => {
-  try {
-    const userId = req.userId;
-    const { title, description, priceCents, billingInterval } = req.body;
+/* =====================================================
+   POST /products
+===================================================== */
+router.post("/", requireAuth, async (req, res) => {
+  const { title, description, priceCents, billingInterval } = req.body;
 
-    if (!title || !priceCents) {
-      return res.status(400).json({
-        ok: false,
-        error: "Missing title or price",
-      });
-    }
-
-    const creator = await prisma.creator.findUnique({
-      where: { userId },
-      include: { products: true },
-    });
-
-    if (!creator) {
-      return res.status(400).json({
-        ok: false,
-        error: "Creator not found",
-      });
-    }
-
-    const planConfig = CLUBMINT_PLANS[creator.plan];
-    const maxProducts = planConfig.features.products;
-
-    if (
-      Number.isFinite(maxProducts) &&
-      creator.products.length >= maxProducts
-    ) {
-      return res.status(403).json({
-        ok: false,
-        error: `Your ${planConfig.name} plan allows only ${maxProducts} products. Upgrade to add more.`,
-      });
-    }
-
-    // ✅ DB-ONLY PRODUCT CREATION (NO STRIPE, NO RAZORPAY)
-    const product = await prisma.product.create({
-      data: {
-        creatorId: creator.id,
-        title,
-        description,
-        priceCents,
-        billingInterval,
-      },
-    });
-
-    return res.json({ ok: true, product });
-  } catch (err) {
-    console.error("POST /products error:", err);
-    return res.status(500).json({ ok: false });
+  if (!title || !priceCents) {
+    return res.status(400).json({ ok: false, error: "Missing fields" });
   }
+
+  const creator = await prisma.creator.findUnique({
+    where: { userId: req.userId },
+    include: { products: true },
+  });
+
+  if (!creator) return res.status(400).json({ ok: false });
+
+  const plan = CLUBMINT_PLANS[creator.plan];
+  const maxProducts = plan.features.products;
+
+  if (
+    Number.isFinite(maxProducts) &&
+    creator.products.length >= maxProducts
+  ) {
+    return res.status(403).json({
+      ok: false,
+      error: `Your ${plan.name} plan allows only ${maxProducts} products.`,
+    });
+  }
+
+  const product = await prisma.product.create({
+    data: {
+      creatorId: creator.id,
+      title,
+      description,
+      priceCents,
+      billingInterval,
+    },
+  });
+
+  res.json({ ok: true, product });
 });
 
-
-/**
- * DELETE /products/:id
- */
+/* =====================================================
+   DELETE /products/:id
+===================================================== */
 router.delete("/:id", requireAuth, async (req, res) => {
-  try {
-    const userId = req.userId;
-    const { id } = req.params;
+  const creator = await prisma.creator.findUnique({
+    where: { userId: req.userId },
+  });
 
-    const creator = await prisma.creator.findUnique({
-      where: { userId },
-    });
+  const product = await prisma.product.findUnique({
+    where: { id: req.params.id },
+  });
 
-    if (!creator)
-      return res.status(400).json({ ok: false, error: "Creator not found" });
-
-    const product = await prisma.product.findUnique({
-      where: { id },
-    });
-
-    if (!product || product.creatorId !== creator.id) {
-      return res.status(403).json({ ok: false, error: "Not allowed" });
-    }
-
-    await prisma.product.delete({
-      where: { id },
-    });
-
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error("DELETE /products/:id error:", err);
-    return res.status(500).json({ ok: false });
+  if (!creator || !product || product.creatorId !== creator.id) {
+    return res.status(403).json({ ok: false });
   }
+
+  await prisma.product.delete({ where: { id: product.id } });
+  res.json({ ok: true });
 });
 
-
-// POST /products/by-ids
-router.post("/by-ids", async (req, res) => {
-  try {
-    const { ids } = req.body;
-
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.json({ ok: true, products: [] });
-    }
-
-    const products = await prisma.product.findMany({
-      where: { id: { in: ids } },
-    });
-
-    return res.json({ ok: true, products });
-  } catch (err) {
-    console.error("POST /products/by-ids error:", err);
-    return res.status(500).json({ ok: false });
-  }
-});
-
+/* =====================================================
+   GET /products/:id
+===================================================== */
 router.get("/:id", requireAuth, async (req, res) => {
   const product = await prisma.product.findFirst({
     where: {
@@ -160,31 +101,22 @@ router.get("/:id", requireAuth, async (req, res) => {
     },
   });
 
-  if (!product) {
-    return res.status(404).json({ ok: false });
-  }
-
+  if (!product) return res.status(404).json({ ok: false });
   res.json({ ok: true, product });
 });
 
-/**
- * GET /products/:id/available-groups
- * Get all Telegram groups for the product's creator
- */
+/* =====================================================
+   GET /products/:id/available-groups
+===================================================== */
 router.get("/:id/available-groups", requireAuth, async (req, res) => {
   const product = await prisma.product.findFirst({
     where: {
       id: req.params.id,
       creator: { userId: req.userId },
     },
-    select: {
-      creatorId: true,
-    },
   });
 
-  if (!product) {
-    return res.status(404).json({ ok: false });
-  }
+  if (!product) return res.status(404).json({ ok: false });
 
   const groups = await prisma.telegramGroup.findMany({
     where: {
@@ -197,11 +129,9 @@ router.get("/:id/available-groups", requireAuth, async (req, res) => {
   res.json({ ok: true, groups });
 });
 
-
-/**
- * POST /products/:id/access
- * Update Telegram group access for a product
- */
+/* =====================================================
+   POST /products/:id/access
+===================================================== */
 router.post("/:id/access", requireAuth, async (req, res) => {
   const { groupIds } = req.body;
 
@@ -216,8 +146,23 @@ router.post("/:id/access", requireAuth, async (req, res) => {
     },
   });
 
-  if (!product) {
-    return res.status(404).json({ ok: false });
+  if (!product) return res.status(404).json({ ok: false });
+
+  const creator = await prisma.creator.findUnique({
+    where: { id: product.creatorId },
+  });
+
+  const plan = CLUBMINT_PLANS[creator.plan];
+  const maxGroups = plan.features.telegramGroups;
+
+  if (
+    Number.isFinite(maxGroups) &&
+    groupIds.length > maxGroups
+  ) {
+    return res.status(403).json({
+      ok: false,
+      error: `Your ${plan.name} plan allows only ${maxGroups} Telegram groups.`,
+    });
   }
 
   await prisma.product.update({
@@ -231,7 +176,5 @@ router.post("/:id/access", requireAuth, async (req, res) => {
 
   res.json({ ok: true });
 });
-
-
 
 export default router;

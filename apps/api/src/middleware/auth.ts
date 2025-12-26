@@ -14,12 +14,12 @@ export function requireAdmin(
 
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  console.log("AUTH TRACE:");
-  console.log("URL:", req.method, req.originalUrl);
-  console.log("HEADERS:", req.headers);
+  // console.log("AUTH TRACE:");
+  // console.log("URL:", req.method, req.originalUrl);
+  // console.log("HEADERS:", req.headers);
   const authHeader = req.headers.authorization;
 
-  console.log("🔍 Incoming Auth Header:", authHeader);
+  // console.log("🔍 Incoming Auth Header:", authHeader);
 
   if (!authHeader) {
     console.log("❌ No Authorization header");
@@ -27,7 +27,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 
   const token = authHeader.split(" ")[1];
-  console.log("🔍 Extracted token:", token);
+  // console.log("🔍 Extracted token:", token);
 
   if (!token) {
     console.log("❌ Token missing after split");
@@ -48,9 +48,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 
 export function auth(req: Request, res: Response, next: NextFunction) {
-  console.log("🛑 AUTH MIDDLEWARE HIT");
-  console.log("REQ HEADERS:", req.headers);
-  console.log("AUTH HEADER RAW:", req.headers.authorization);
+  // console.log("🛑 AUTH MIDDLEWARE HIT");
+  // console.log("REQ HEADERS:", req.headers);
+  // console.log("AUTH HEADER RAW:", req.headers.authorization);
   const authHeader = req.headers.authorization;
   
 
@@ -60,11 +60,11 @@ export function auth(req: Request, res: Response, next: NextFunction) {
   }
 
   const token = authHeader.split(" ")[1];
-  console.log("[AUTH] Extracted token:", token);
+  // console.log("[AUTH] Extracted token:", token);
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-    console.log("[AUTH] Decoded token:", decoded);
+    // console.log("[AUTH] Decoded token:", decoded);
     req.user = {
       userId: decoded.sub,  // NextAuth stores userId in "sub"
       email: decoded.email,

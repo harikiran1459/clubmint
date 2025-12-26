@@ -194,65 +194,62 @@ import fetch from "node-fetch";
 const prisma = new PrismaClient();
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-if (!BOT_TOKEN) {
-  throw new Error("Missing TELEGRAM_BOT_TOKEN");
-}
+if (!BOT_TOKEN) throw new Error("Missing TELEGRAM_BOT_TOKEN");
 
 const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 /**
- * Telegram chat_member webhook handler
+ * Telegram chat_member webhook
  *
  * ENFORCEMENT (new joins only):
- * - Bot stays silent
- * - No verification
+ * - Silent
  * - No DMs
+ * - No verification
  * - No retroactive kicks
  *
  * RULE:
- *   A user may stay ONLY if they have an ACTIVE subscription
- *   to a product mapped to this Telegram group.
+ *   User may stay ONLY if they have a VALID (active/grace)
+ *   subscription mapped to this group.
  */
 export async function handleChatMemberUpdate(update: any) {
   try {
     const chatMember = update.chat_member;
     if (!chatMember) return;
 
-    const chat = chatMember.chat;
-    const newMember = chatMember.new_chat_member;
-    const oldMember = chatMember.old_chat_member;
-
-    if (!chat || !newMember?.user) return;
+    const { chat, new_chat_member, old_chat_member } = chatMember;
+    if (!chat || !new_chat_member?.user) return;
 
     // Ignore bots (including ourselves)
-    if (newMember.user.is_bot) return;
+    if (new_chat_member.user.is_bot) return;
 
-    // Only enforce when user JUST joined
-    if (
-      oldMember?.status === "left" &&
-      newMember.status !== "member"
-    ) {
-      return;
-    }
+    /**
+     * ✅ Detect REAL joins only
+     * Covers:
+     * - Invite link join
+     * - Admin-added user
+     * - Approved join request
+     */
+    const joined =
+      (old_chat_member?.status === "left" ||
+        old_chat_member?.status === "kicked") &&
+      new_chat_member.status === "member";
 
-    if (newMember.status !== "member") return;
+    if (!joined) return;
 
     const tgGroupId = BigInt(chat.id);
-    const tgUserId = BigInt(newMember.user.id);
+    const tgUserId = BigInt(new_chat_member.user.id);
 
     // --------------------------------------------------
-    // 1️⃣ Find Telegram group
+    // 1️⃣ Find managed Telegram group
     // --------------------------------------------------
     const group = await prisma.telegramGroup.findUnique({
       where: { tgGroupId },
       include: {
-        products: {
-          select: { id: true },
-        },
+        products: { select: { id: true } },
       },
     });
 
-    // Group not managed by ClubMint → ignore
+    // Not a ClubMint group → ignore
     if (!group) return;
 
     // No products mapped → enforcement disabled
@@ -261,11 +258,12 @@ export async function handleChatMemberUpdate(update: any) {
     const productIds = group.products.map((p) => p.id);
 
     // --------------------------------------------------
-    // 2️⃣ Check ACTIVE subscription
+    // 2️⃣ Check VALID subscription (active OR grace)
     // --------------------------------------------------
-    const activeSubscription = await prisma.subscription.findFirst({
+    const validSubscription = await prisma.subscription.findFirst({
       where: {
-        status: "active",
+        status: { in: ["active", "past_due", "unpaid"] },
+        productId: { in: productIds },
         accessControls: {
           some: {
             platform: "telegram",
@@ -273,26 +271,22 @@ export async function handleChatMemberUpdate(update: any) {
             status: "granted",
           },
         },
-        productId: {
-          in: productIds,
-        },
       },
     });
 
     // --------------------------------------------------
     // 3️⃣ Enforce
     // --------------------------------------------------
-    if (!activeSubscription) {
-      await kickUser(chat.id, newMember.user.id);
+    if (!validSubscription) {
+      await kickUser(chat.id, new_chat_member.user.id);
 
-      // Optional audit log (recommended)
       await prisma.telegramActivityLog.create({
         data: {
           creatorId: group.creatorId,
           groupId: group.id,
           tgUserId,
           event: "kick",
-          reason: "no_active_subscription",
+          reason: "no_valid_subscription",
         },
       });
 
@@ -331,3 +325,4 @@ async function kickUser(chatId: number, userId: number) {
     console.error("Failed to kick user:", err);
   }
 }
+

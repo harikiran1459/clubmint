@@ -241,10 +241,11 @@
 
 
 // apps/api/src/integrations/telegram.ts
-// apps/api/src/integrations/telegram.ts
 import "dotenv/config";
 import fetch from "node-fetch";
 import { PrismaClient } from "@prisma/client";
+import { CLUBMINT_PLANS } from "../config/plans";
+
 
 const prisma = new PrismaClient();
 
@@ -281,7 +282,7 @@ export async function handleTelegramUpdate(update: any) {
       return};
 
     const text = msg.text.trim();
-    if (!text.startsWith("ClubMint-")) return;
+    if (!text.startsWith("CLUBMINT")) return;
 
     const chat = msg.chat;
     const tgGroupId = BigInt(chat.id);
@@ -289,12 +290,10 @@ export async function handleTelegramUpdate(update: any) {
     // ----------------------------------------
     // 1️⃣ Fetch valid unused claim
     // ----------------------------------------
-    console.log("📌 RAW TEXT:", JSON.stringify(text));
-    const normalized = text.replace(/^ClubMint-/, "");
 
     const claim = await prisma.telegramGroupClaim.findFirst({
       where: {
-        code: normalized,
+        code: text,
         used: false,
         expiresAt: { gt: new Date() },
       },
@@ -305,6 +304,51 @@ export async function handleTelegramUpdate(update: any) {
 
     if (!claim) return; // silently ignore invalid code
     console.log("📌 CLAIM MATCH RESULT:", claim);
+    // Fetch creator & current groups
+const creator = await prisma.creator.findUnique({
+  where: { id: claim.creatorId },
+  include: { telegramGroups: true },
+});
+
+if (!creator) return;
+
+const plan = CLUBMINT_PLANS[creator.plan];
+const maxGroups = plan.features.telegramGroups;
+
+// Count connected groups only
+const connectedGroups = creator.telegramGroups.filter(
+  (g) => g.isConnected
+);
+
+// 🚫 Block if plan limit exceeded
+if (
+  Number.isFinite(maxGroups) &&
+  connectedGroups.length >= maxGroups
+) {
+  console.log("🚫 Telegram group limit reached");
+
+  // Optional UX feedback (safe, one-time)
+  await fetch(`${API}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chat.id,
+      text:
+        "❌ Telegram group limit reached for your current plan.\n" +
+        "Upgrade your plan to add more groups.",
+    }),
+  });
+
+  return; // ❗️DO NOT consume claim
+}
+
+    // ----------------------------------------
+    // 3️⃣ Consume claim FIRST (critical)
+    // ----------------------------------------
+    await prisma.telegramGroupClaim.update({
+      where: { id: claim.id },
+      data: { used: true },
+    });
 
     // ----------------------------------------
     // 2️⃣ Attach / create group
@@ -329,13 +373,7 @@ export async function handleTelegramUpdate(update: any) {
         isConnected: true,
       },
     });
-     // ----------------------------------------
-    // 3️⃣ Consume claim FIRST (critical)
-    // ----------------------------------------
-    await prisma.telegramGroupClaim.update({
-      where: { id: claim.id },
-      data: { used: true },
-    });
+     
 
     // ----------------------------------------
     // 4️⃣ Confirmation message (important UX)
