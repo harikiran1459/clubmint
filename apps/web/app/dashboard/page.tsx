@@ -127,7 +127,7 @@ setPages(pagesJson.pages ?? []);
       {/* ---------------- Revenue Trend ---------------- */}
       <SectionHeader
   title="Revenue Trend"
-  subtitle="Last 30 days"
+  subtitle="Shows how your earnings have changed over the last 30 days."
 />
 
       <div className="grid grid-cols-1">
@@ -136,8 +136,16 @@ setPages(pagesJson.pages ?? []);
 
       {/* ---------------- Funnel (next step) ---------------- */}
       {/* FunnelChart will be added here */}
+      <SectionHeader
+  title="Conversion Funnel"
+  subtitle="Tracks how many visitors turn into paying customers."
+/>
       <FunnelChart days={30} />
       {/* ---------------- Page Funnel ---------------- */}
+      <SectionHeader
+  title="Page Conversion Funnel"
+  subtitle="Shows how well this page converts visitors into payments."
+/>
       <div className="space-y-4">
         <PageSelector
           pages={pages}
@@ -148,6 +156,10 @@ setPages(pagesJson.pages ?? []);
         <PageFunnelChart pageId={selectedPageId ?? ""} />
       </div>
       {/* ---------------- Page → Product Funnel ---------------- */}
+      <SectionHeader
+  title="Product Performance"
+  subtitle="Reveals which products actually convert on this page."
+/>
       <PageProductTable pageId={selectedPageId ?? ""} />
 
 

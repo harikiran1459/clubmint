@@ -121,7 +121,7 @@ router.get("/:id/available-groups", requireAuth, async (req, res) => {
   const groups = await prisma.telegramGroup.findMany({
     where: {
       creatorId: product.creatorId,
-      isConnected: true,
+      // isConnected: true,
     },
     orderBy: { createdAt: "asc" },
   });

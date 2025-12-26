@@ -43,7 +43,7 @@ export default function ProductAccessPage() {
       json.product.telegramGroups?.map((g: any) => g.id) ?? []
     );
   })();
-}, [productId, productId, session?.user?.accessToken]);
+}, [productId, session?.user?.accessToken]);
 
 
   // Load creator telegram groups

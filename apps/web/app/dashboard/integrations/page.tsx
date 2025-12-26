@@ -183,7 +183,7 @@ export default function IntegrationsPage() {
               Paste this message inside your Telegram group:
             </p>
             <p className="mt-2 text-lg font-mono font-bold">
-              ClubMint-{claimCode}
+              {claimCode}
             </p>
           </div>
         )}
