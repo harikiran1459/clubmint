@@ -1,40 +1,59 @@
+// src/cron/subscriptionCheck.ts
+
 import cron from "node-cron";
 import { PrismaClient } from "@prisma/client";
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
-import { addUserToGroup, sendTelegramMessage, kickFromGroup } from "../../../../packages/shared/telegram";
-import { createAlert } from "../utils/createAlert";
-
+import { sendTelegramMessage } from "../../../../packages/shared/telegram";
 
 const prisma = new PrismaClient();
-let redis: IORedis | null = null;
-if (process.env.REDIS_URL) {
-  redis = new IORedis(process.env.REDIS_URL);
-}
 
+// ----------------------------------------------------
+// Redis + Queue (optional but recommended)
+// ----------------------------------------------------
 let revokeQueue: Queue | null = null;
+
 if (process.env.REDIS_URL) {
   const connection = new IORedis(process.env.REDIS_URL);
-
   revokeQueue = new Queue("revoke-access", { connection });
 }
 
+// ----------------------------------------------------
+// CONFIG
+// ----------------------------------------------------
+const WARNING_BEFORE_EXPIRY_HOURS = 24;
+const GRACE_PERIOD_HOURS = 12;
+
+// ----------------------------------------------------
+// CRON — runs every 10 minutes
+// ----------------------------------------------------
 cron.schedule("*/10 * * * *", async () => {
-  console.log("⏳ Running subscription warning & expiry cron...");
+  console.log("⏳ Running subscription expiry cron…");
 
   const now = new Date();
 
-  // 1️⃣ Find subscriptions expiring in 24 hours
+  // ====================================================
+  // 1️⃣ Warn users 24h before expiry
+  // ====================================================
+  const warnWindowStart = new Date(
+    now.getTime() + (WARNING_BEFORE_EXPIRY_HOURS - 1) * 3600 * 1000
+  );
+  const warnWindowEnd = new Date(
+    now.getTime() + (WARNING_BEFORE_EXPIRY_HOURS + 1) * 3600 * 1000
+  );
+
   const expiringSoon = await prisma.subscription.findMany({
     where: {
       status: "active",
       warned24h: false,
       currentPeriodEnd: {
-        gte: new Date(now.getTime() + 23 * 3600 * 1000),
-        lte: new Date(now.getTime() + 25 * 3600 * 1000),
+        gte: warnWindowStart,
+        lte: warnWindowEnd,
       },
     },
-    include: { user: true },
+    include: {
+      user: true,
+    },
   });
 
   for (const sub of expiringSoon) {
@@ -45,7 +64,7 @@ cron.schedule("*/10 * * * *", async () => {
     if (telegramUser) {
       await sendTelegramMessage(
         Number(telegramUser.tgUserId),
-        `⚠️ *Your subscription expires in 24 hours.*\nPlease renew to avoid removal from Telegram groups.`
+        `⚠️ Your subscription expires in 24 hours.\nRenew to avoid losing access to Telegram groups.`
       );
     }
 
@@ -55,8 +74,10 @@ cron.schedule("*/10 * * * *", async () => {
     });
   }
 
-  // 2️⃣ Find expired subs where grace has not yet passed
-  const expired = await prisma.subscription.findMany({
+  // ====================================================
+  // 2️⃣ Mark expired subscriptions + start grace period
+  // ====================================================
+  const newlyExpired = await prisma.subscription.findMany({
     where: {
       status: "active",
       currentPeriodEnd: { lt: now },
@@ -64,9 +85,10 @@ cron.schedule("*/10 * * * *", async () => {
     },
   });
 
-  for (const sub of expired) {
-    // Set grace period (e.g., 12 hours)
-    const graceEnd = new Date(now.getTime() + 12 * 3600 * 1000);
+  for (const sub of newlyExpired) {
+    const graceEnd = new Date(
+      now.getTime() + GRACE_PERIOD_HOURS * 3600 * 1000
+    );
 
     await prisma.subscription.update({
       where: { id: sub.id },
@@ -83,30 +105,35 @@ cron.schedule("*/10 * * * *", async () => {
     if (telegramUser) {
       await sendTelegramMessage(
         Number(telegramUser.tgUserId),
-        `⚠️ Your subscription has expired.\nYou have a 12-hour grace period before access is revoked.`
+        `⚠️ Your subscription has expired.\nYou have ${GRACE_PERIOD_HOURS} hours to renew before access is revoked.`
       );
     }
   }
 
-  // 3️⃣ Kick users whose gracePeriod ended
-  const toKick = await prisma.subscription.findMany({
+  // ====================================================
+  // 3️⃣ Enqueue revoke-access after grace period
+  // ====================================================
+  const toRevoke = await prisma.subscription.findMany({
     where: {
       status: "active",
       kickAfter: { lt: now },
     },
   });
 
-  for (const sub of toKick) {
-    // queue revoke job
-    await revokeQueue.add("revoke", {
-      subscriptionId: sub.id,
-      reason: "expired_with_grace",
-    });
+  for (const sub of toRevoke) {
+    if (revokeQueue) {
+      await revokeQueue.add("revoke-access", {
+        subscriptionId: sub.id,
+      });
+    }
 
     await prisma.subscription.update({
       where: { id: sub.id },
-      data: { status: "canceled" },
+      data: {
+        status: "canceled",
+      },
     });
   }
-});
 
+  console.log("✅ Subscription cron completed");
+});
