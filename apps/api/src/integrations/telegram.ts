@@ -260,8 +260,11 @@ const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 export async function handleTelegramUpdate(update: any) {
   try {
     console.log("📨 TELEGRAM UPDATE RECEIVED");
-    const msg = update.message || update.channel_post;
-    if (!msg?.text || !msg.chat) return;
+    const msg = update.message ||
+      update.edited_message ||
+      update.channel_post ||
+      update.edited_channel_post;
+    if (!msg || !msg?.text || !msg.chat) return;
 
     // Ignore private chats
     if (msg.chat.type === "private") return;
