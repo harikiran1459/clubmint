@@ -11,11 +11,16 @@ const prisma = new PrismaClient();
  */
 router.get("/", requireAuth, async (req, res) => {
   try {
-    const creatorId = (req as any).creatorId;
+    const creator = await prisma.creator.findUnique({
+  where: { userId: req.userId },
+});
 
-    if (!creatorId) {
-      return res.status(403).json({ ok: false });
-    }
+if (!creator) {
+  return res.json({ ok: true, subscribers: [] });
+}
+
+const creatorId = creator.id;
+
 
     const access = await prisma.accessControl.findMany({
       where: {

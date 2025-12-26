@@ -20,8 +20,8 @@ export const CLUBMINT_PLANS = {
     commissionPct: 5,
     razorpayPlanId: "plan_RrzVNj5MyoyfjX",
     features: {
-      telegramGroups: 5,
-      products: 5,
+      telegramGroups: 3,
+      products: 3,
       autoAdd: true,
       analytics: true,
       customDomain: true,

@@ -16,10 +16,12 @@ export default function PricingCards({
   plans,
   currentPlan,
   onAction,
+  upgradingPlan,
 }: {
   plans: Plan[];
   currentPlan?: string;
   onAction: (planKey: string) => void;
+  upgradingPlan?: string | null;
 }) {
   return (
     <div className="grid md:grid-cols-3 gap-8">
@@ -42,12 +44,12 @@ export default function PricingCards({
             )}
 
             <h3 className="text-2xl font-semibold mb-1">{plan.name}</h3>
-            <p className="text-white/60 mb-6">{plan.subtitle}</p>
+            <p className="text-white/60 mb-6">{}</p>
 
             <div className="mb-4">
               <span className="text-4xl font-bold">{plan.price}</span>
               {plan.price !== "₹0" && (
-                <span className="text-white/60 ml-2">/month</span>
+                <span className="text-white/60 ml-2">{plan.subtitle}</span>
               )}
             </div>
 
@@ -75,7 +77,12 @@ export default function PricingCards({
                   : "bg-white/10 hover:bg-white/20"
               }`}
             >
-              {isCurrent ? "Current Plan" : `Upgrade to ${plan.name}`}
+              {isCurrent
+  ? "Current Plan"
+  : plan.key === "free"
+  ? "Downgrade"
+  : `Upgrade to ${plan.name}`}
+
             </button>
           </div>
         );

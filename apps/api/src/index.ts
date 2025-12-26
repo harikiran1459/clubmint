@@ -32,6 +32,10 @@ import "./cron/analyticsDaily";
 
 
 dotenv.config();
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
+
 
 const app = express();
 const PORT = process.env.PORT || 3001;

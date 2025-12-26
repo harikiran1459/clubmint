@@ -117,9 +117,9 @@ export default function ProductAccessPage() {
               <p className="font-semibold">
                 {g.title || "Unnamed Group"}
               </p>
-              <p className="text-sm text-gray-500">
+              {/* <p className="text-sm text-gray-500">
                 {g.username ? `@${g.username}` : g.tgGroupId}
-              </p>
+              </p> */}
             </div>
           </label>
         ))}

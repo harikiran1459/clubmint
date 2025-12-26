@@ -54,7 +54,12 @@ router.patch("/payout", requireAuth, async (req, res) => {
     },
   });
 
-  res.json({ ok: true });
+  const creator = await prisma.creator.findUnique({
+  where: { userId: req.userId },
+});
+
+res.json({ ok: true, creator });
+
 });
 
 

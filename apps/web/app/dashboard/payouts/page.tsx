@@ -3,142 +3,110 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
+const MIN_PAYOUT = 100; // ₹100
+
 export default function PayoutsPage() {
   const { data: session, status } = useSession();
-  const [data, setData] = useState({ totalRevenue: 0,
-  totalCommission: 0,
-  netEarnings: 0,});
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [payouts, setPayouts] = useState<any[]>([]);
 
+  const [earnings, setEarnings] = useState({
+    totalRevenue: 0,
+    totalCommission: 0,
+    netEarnings: 0,
+  });
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [payouts, setPayouts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (status !== "authenticated") return;
 
     const token = (session?.user as any)?.accessToken;
-    if (!token) {
-      setLoading(false);
-      return};
-
-    async function load() {
-  try {
-    const token = (session?.user as any)?.accessToken;
     if (!token) return;
 
-    const [earningsRes, txRes, payoutsRes] = await Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/stats/creator/earnings`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/payouts/transactions`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/payouts/history`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-    ]);
+    async function load() {
+      try {
+        const [earningsRes, txRes, payoutsRes] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/stats/creator/earnings`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/payouts/transactions`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/payouts/history`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
 
-    const earningsJson = await earningsRes.json();
-    const txJson = await txRes.json();
-    const payoutsJson = await payoutsRes.json();
+        const e = await earningsRes.json();
+        const t = await txRes.json();
+        const p = await payoutsRes.json();
 
-    if (earningsJson.ok) setData(earningsJson);
-    if (txJson.ok) setTransactions(txJson.payments);
-    if (payoutsJson.ok) setPayouts(payoutsJson.payouts);
-  } catch (err) {
-    console.error("❌ Failed to load payouts page", err);
-  } finally {
-    setLoading(false);
-  }
-}
-
+        if (e.ok) setEarnings(e);
+        if (t.ok) setTransactions(t.payments);
+        if (p.ok) setPayouts(p.payouts);
+      } finally {
+        setLoading(false);
+      }
+    }
 
     load();
   }, [status, session]);
 
-  if (status === "loading" || loading) {
+  if (loading || status === "loading") {
     return <div className="p-10 text-white/60">Loading payouts…</div>;
   }
 
+  const available = earnings.netEarnings / 100;
+  const paidOut = payouts.reduce((s, p) => s + p.totalAmount, 0) / 100;
+  const payoutEligible = available >= MIN_PAYOUT;
+
   return (
-    <div className="max-w-4xl mx-auto py-10 space-y-8">
-      {/* Manual payout notice */}
+    <div className="max-w-5xl mx-auto py-10 space-y-10">
+      {/* Info banner */}
       <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-        <h2 className="text-xl font-semibold mb-2">
-          Payouts during beta
-        </h2>
-        <p className="text-white/70">
-          During beta, payouts are processed manually on a weekly basis.
-          Please ensure your payout details are added in Settings.
+        <h2 className="text-xl font-semibold mb-1">Payouts (Beta)</h2>
+        <p className="text-white/70 text-sm">
+          Payouts are processed manually once a week during beta.
+          Minimum payout amount is ₹{MIN_PAYOUT}.
         </p>
       </div>
 
-      {/* Earnings summary */}
+      {/* Balances */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card title="Total Revenue" value={`₹${data.totalRevenue ?? 0 / 100}`} />
-        <Card title="Platform Fee" value={`₹${data.totalCommission ?? 0 / 100}`} />
-        <Card title="You Earned" value={`₹${data.netEarnings ?? 0 / 100}`} />
+        <StatCard
+          title="Available for payout"
+          value={`₹${available.toFixed(2)}`}
+          accent={payoutEligible ? "green" : "yellow"}
+          subtitle={
+            payoutEligible
+              ? "Eligible for next payout"
+              : `Minimum ₹${MIN_PAYOUT} required`
+          }
+        />
+        <StatCard
+          title="Paid out"
+          value={`₹${paidOut.toFixed(2)}`}
+          accent="purple"
+        />
+        <StatCard
+          title="Lifetime revenue"
+          value={`₹${(earnings.totalRevenue / 100).toFixed(2)}`}
+        />
       </div>
 
       {/* Transactions */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">
-          Transaction history
-        </h2>
-
+      <Section title="Transaction history">
         {transactions.length === 0 ? (
-          <p className="text-white/60">No payments yet.</p>
+          <Empty label="No transactions yet." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border border-white/10 rounded-xl overflow-hidden">
-              <thead className="bg-white/5">
-                <tr>
-                  <th className="p-3 text-left">Date</th>
-                  <th className="p-3 text-left">Product</th>
-                  <th className="p-3 text-left">Subscriber</th>
-                  <th className="p-3 text-right">Gross</th>
-                  <th className="p-3 text-right">Commission</th>
-                  <th className="p-3 text-right">You earn</th>
-                  <th className="p-3 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((t) => (
-                  <tr key={t.id} className="border-t border-white/10">
-                    <td className="p-3">
-                      {new Date(t.date).toLocaleDateString()}
-                    </td>
-                    <td className="p-3">{t.product}</td>
-                    <td className="p-3">{t.subscriber}</td>
-                    <td className="p-3 text-right">₹{t.gross / 100}</td>
-                    <td className="p-3 text-right text-red-400">
-                      -₹{t.commission / 100}
-                    </td>
-                    <td className="p-3 text-right text-green-400">
-                      ₹{t.net / 100}
-                    </td>
-                    <td className="p-3 text-center">
-                      <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400">
-                        paid
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table transactions={transactions} />
         )}
-      </div>
+      </Section>
 
-        {/* Payout history */}
-
-      <div className="mt-10">
-        <h2 className="text-xl font-semibold mb-4">
-          Payout history
-        </h2>
-
+      {/* Payout history */}
+      <Section title="Payout history">
         {payouts.length === 0 ? (
-          <p className="text-white/60">No payouts yet.</p>
+          <Empty label="No payouts yet." />
         ) : (
           <div className="space-y-3">
             {payouts.map((p) => (
@@ -152,12 +120,9 @@ export default function PayoutsPage() {
                     {new Date(p.periodEnd).toLocaleDateString()}
                   </div>
                   <div className="text-xs opacity-60">
-                    {p.paidAt
-                      ? `Paid on ${new Date(p.paidAt).toDateString()}`
-                      : "Processing"}
+                    Paid on {new Date(p.paidAt).toDateString()}
                   </div>
                 </div>
-
                 <div className="font-semibold">
                   ₹{(p.totalAmount / 100).toFixed(2)}
                 </div>
@@ -165,17 +130,90 @@ export default function PayoutsPage() {
             ))}
           </div>
         )}
-      </div>
-
+      </Section>
     </div>
   );
 }
 
-function Card({ title, value }: { title: string; value: string }) {
+/* ---------- Small UI pieces ---------- */
+
+function StatCard({
+  title,
+  value,
+  subtitle,
+  accent = "purple",
+}: any) {
+  const accentMap: any = {
+    purple: "text-purple-400",
+    green: "text-green-400",
+    yellow: "text-yellow-400",
+  };
+
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 p-6">
       <p className="text-sm text-white/60">{title}</p>
-      <p className="text-2xl font-bold mt-2">{value}</p>
+      <p className={`text-2xl font-bold mt-2 ${accentMap[accent]}`}>
+        {value}
+      </p>
+      {subtitle && (
+        <p className="text-xs text-white/50 mt-1">{subtitle}</p>
+      )}
+    </div>
+  );
+}
+
+function Section({ title, children }: any) {
+  return (
+    <div>
+      <h2 className="text-xl font-semibold mb-4">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+function Empty({ label }: { label: string }) {
+  return <p className="text-white/60 text-sm">{label}</p>;
+}
+
+function Table({ transactions }: any) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border border-white/10 rounded-xl overflow-hidden">
+        <thead className="bg-white/5">
+          <tr>
+            <th className="p-3 text-left">Date</th>
+            <th className="p-3 text-left">Product</th>
+            <th className="p-3 text-left">Subscriber</th>
+            <th className="p-3 text-right">Gross</th>
+            <th className="p-3 text-right">Commission</th>
+            <th className="p-3 text-right">You earn</th>
+            <th className="p-3 text-center">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {transactions.map((t: any) => (
+            <tr key={t.id} className="border-t border-white/10">
+              <td className="p-3">
+                {new Date(t.date).toLocaleDateString()}
+              </td>
+              <td className="p-3">{t.product}</td>
+              <td className="p-3">{t.subscriber}</td>
+              <td className="p-3 text-right">₹{t.gross / 100}</td>
+              <td className="p-3 text-right text-red-400">
+                -₹{t.commission / 100}
+              </td>
+              <td className="p-3 text-right text-green-400">
+                ₹{t.net / 100}
+              </td>
+              <td className="p-3 text-center">
+                <span className="px-2 py-1 rounded text-xs bg-green-500/20 text-green-400">
+                  {t.status}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

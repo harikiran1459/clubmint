@@ -45,6 +45,12 @@ const [upiId, setUpiId] = useState("");
           setProfile(json.creator);
           setName(json.creator.name ?? "");
           setBio(json.creator.bio ?? "");
+          setPayoutMethod(json.creator.payoutMethod ?? "");
+          setBankName(json.creator.bankName ?? "");
+          setAccountNumber(json.creator.accountNumber ?? "");
+          setIfsc(json.creator.ifsc ?? "");
+          setAccountHolder(json.creator.accountHolder ?? "");
+          setUpiId(json.creator.upiId ?? "");
         }
       } finally {
         setLoading(false);
@@ -233,27 +239,30 @@ else {
       </div>
 
       {/* TELEGRAM */}
-      <div className="chart-card" style={{ marginTop: 20 }}>
+      {/* <div className="chart-card" style={{ marginTop: 20 }}>
         <h2 className="chart-title">Telegram</h2>
 
-        {profile.telegramLinked ? (
-          <>
-            <div className="muted">Linked Telegram ID</div>
-            <div style={{ fontWeight: 600 }}>{profile.telegramUserId}</div>
+        {profile && profile.telegramLinked ? (
+  <>
+    <div className="text-sm">
+      Linked Telegram ID:{" "}
+      <span className="font-mono">{profile.telegramUserId}</span>
+    </div>
 
-            <button
-              className="auth-btn"
-              style={{ marginTop: 12, width: 200 }}
-              onClick={unlinkTelegram}
-              disabled={telegramBusy}
-            >
-              {telegramBusy ? "Unlinking..." : "Unlink Telegram"}
-            </button>
-          </>
-        ) : (
-          <p className="muted">Telegram not connected.</p>
-        )}
-      </div>
+    <DangerButton
+      onClick={unlinkTelegram}
+      loading={telegramBusy}
+    >
+      Unlink Telegram
+    </DangerButton>
+  </>
+) : (
+  <p className="text-white/60 text-sm">
+    Telegram is not connected.
+  </p>
+)}
+
+      </div> */}
 
       <div className="mt-12">
   <h2 className="text-xl font-semibold mb-4">Payout details</h2>
@@ -347,5 +356,17 @@ className="w-full md:w-96 h-10 px-4 py-2 my-4 mx-0 md:mx-2 text-black"
         </button>
       </div>
     </div>
+  );
+}
+
+function DangerButton({ children, onClick, loading }: any) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      className="rounded-xl bg-red-500/80 px-6 py-2 text-sm font-medium hover:bg-red-500 disabled:opacity-50"
+    >
+      {loading ? "Processing…" : children}
+    </button>
   );
 }

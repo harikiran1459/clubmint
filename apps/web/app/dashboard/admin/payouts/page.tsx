@@ -10,16 +10,13 @@ type PendingPayout = {
 
   payoutMethod: "bank" | "upi" | null;
 
-  // Bank details
   bankName?: string | null;
   accountNumber?: string | null;
   ifsc?: string | null;
   accountHolder?: string | null;
 
-  // UPI
   upiId?: string | null;
 };
-
 
 export default function AdminPayoutsPage() {
   const { data: session, status } = useSession();
@@ -32,26 +29,22 @@ export default function AdminPayoutsPage() {
     if (status !== "authenticated") return;
 
     const token = (session?.user as any)?.accessToken;
-    if (!token) {
-      setLoading(false);
-      return};
+    if (!token) return;
 
     (async () => {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/admin/payouts/pending`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/admin/payouts/pending`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
 
-      const json = await res.json();
-      if (json.ok) {
-        setPayouts(json.data);
+        const json = await res.json();
+        if (json.ok) setPayouts(json.data);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     })();
   }, [status, session]);
 
@@ -61,120 +54,142 @@ export default function AdminPayoutsPage() {
 
     setRunning(creatorId);
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/admin/payouts/run`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ creatorId }),
-      }
-    );
-
-    const json = await res.json();
-
-    if (json.ok) {
-      setPayouts((prev) =>
-        prev.filter((p) => p.creatorId !== creatorId)
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/admin/payouts/run`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ creatorId }),
+        }
       );
-    }
 
-    setRunning(null);
+      const json = await res.json();
+
+      if (json.ok) {
+        setPayouts((prev) =>
+          prev.filter((p) => p.creatorId !== creatorId)
+        );
+      }
+    } finally {
+      setRunning(null);
+    }
   }
 
   if (status === "loading" || loading) {
-    return <div className="p-6">Loading payouts…</div>;
+    return <div className="p-6 text-white/60">Loading payouts…</div>;
   }
 
   return (
-  <div className="space-y-6">
-    <h1 className="text-xl font-semibold">Admin Payouts</h1>
+    <div className="max-w-5xl mx-auto space-y-8 py-8">
+      <header>
+        <h1 className="text-2xl font-semibold">Admin · Payouts</h1>
+        <p className="text-sm text-white/60 mt-1">
+          Review and manually process creator payouts during beta.
+        </p>
+      </header>
 
-    {payouts.length === 0 ? (
-      <div className="text-sm opacity-60">
-        No pending payouts.
-      </div>
-    ) : (
-      <div className="space-y-4">
-        {payouts.map((p) => {
-          const hasValidDetails =
-            (p.payoutMethod === "upi" && p.upiId) ||
-            (p.payoutMethod === "bank" &&
-              p.accountNumber &&
-              p.ifsc &&
-              p.accountHolder);
+      {payouts.length === 0 ? (
+        <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-sm text-white/60">
+          No pending payouts 🎉
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {payouts.map((p) => {
+            const hasValidDetails =
+              (p.payoutMethod === "upi" && p.upiId) ||
+              (p.payoutMethod === "bank" &&
+                p.accountNumber &&
+                p.ifsc &&
+                p.accountHolder);
 
-          return (
-            <div
-              key={p.creatorId}
-              className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3"
-            >
-              {/* Top row */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium">
-                    @{p.handle}
+            return (
+              <div
+                key={p.creatorId}
+                className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4"
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-lg">
+                      @{p.handle}
+                    </div>
+                    <div className="text-sm text-white/60">
+                      Pending payout
+                    </div>
+                    <div className="text-xl font-semibold text-green-400 mt-1">
+                      ₹{(p.totalPending / 100).toFixed(2)}
+                    </div>
                   </div>
-                  <div className="text-sm opacity-70">
-                    ₹{(p.totalPending / 100).toFixed(2)} pending
-                  </div>
+
+                  <button
+                    onClick={() => runPayout(p.creatorId)}
+                    disabled={
+                      running === p.creatorId || !hasValidDetails
+                    }
+                    className={`rounded-xl px-5 py-2 text-sm font-medium transition
+                      ${
+                        hasValidDetails
+                          ? "bg-purple-600 hover:bg-purple-700"
+                          : "bg-gray-600 cursor-not-allowed"
+                      }
+                    `}
+                  >
+                    {running === p.creatorId
+                      ? "Processing…"
+                      : "Mark as Paid"}
+                  </button>
                 </div>
 
-                <button
-                  onClick={() => runPayout(p.creatorId)}
-                  disabled={
-                    running === p.creatorId || !hasValidDetails
-                  }
-                  className={`rounded-lg px-4 py-2 text-sm transition
-                    ${
-                      hasValidDetails
-                        ? "bg-purple-600 hover:bg-purple-700"
-                        : "bg-gray-600 cursor-not-allowed"
-                    }
-                  `}
-                >
-                  {running === p.creatorId
-                    ? "Processing…"
-                    : "Mark Paid"}
-                </button>
-              </div>
+                {/* Divider */}
+                <div className="h-px bg-white/10" />
 
-              {/* Payout details */}
-              <div className="text-xs opacity-80">
-                {p.payoutMethod === "upi" && p.upiId && (
-                  <>
-                    <span className="opacity-60">UPI:</span>{" "}
-                    <span className="font-mono">{p.upiId}</span>
-                  </>
-                )}
-
-                {p.payoutMethod === "bank" && (
-                  <>
-                    <div>{p.accountHolder}</div>
-                    <div>
-                      {p.bankName} ·{" "}
-                      <span className="font-mono">
-                        {p.accountNumber}
-                      </span>
-                    </div>
-                    <div className="font-mono">{p.ifsc}</div>
-                  </>
-                )}
-
-                {!hasValidDetails && (
-                  <div className="text-red-400">
-                    ❌ Payout details missing — creator must update settings
+                {/* Payout details */}
+                <div className="text-sm space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs uppercase opacity-50">
+                      Method
+                    </span>
+                    <span className="text-xs rounded-full bg-white/10 px-2 py-0.5">
+                      {p.payoutMethod ?? "Not set"}
+                    </span>
                   </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    )}
-  </div>
-);
 
+                  {p.payoutMethod === "upi" && p.upiId && (
+                    <div className="font-mono text-sm">
+                      {p.upiId}
+                    </div>
+                  )}
+
+                  {p.payoutMethod === "bank" && (
+                    <div className="space-y-0.5 text-sm">
+                      <div>{p.accountHolder}</div>
+                      <div>
+                        {p.bankName} ·{" "}
+                        <span className="font-mono">
+                          {p.accountNumber}
+                        </span>
+                      </div>
+                      <div className="font-mono opacity-70">
+                        {p.ifsc}
+                      </div>
+                    </div>
+                  )}
+
+                  {!hasValidDetails && (
+                    <div className="text-xs text-red-400 mt-2">
+                      ❌ Payout details missing — creator must update settings
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }

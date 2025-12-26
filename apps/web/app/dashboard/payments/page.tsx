@@ -2,59 +2,17 @@
 // apps/web/app/dashboard/payments/page.tsx
 
 import { useEffect, useState } from "react";
-import { CLUBMINT_PLANS } from "../../../lib/plans";
+import { PRICING_PLANS_UI } from "../../../lib/plans";
 import { useSession } from "next-auth/react";
 import PricingCards from "../../components/PricingCards";
-
-
 
 
 export default function BillingPage() {
   const [creator, setCreator] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const { data: session, status } = useSession();
-  const plans = [
-  {
-    key: "free",
-    name: "Free",
-    price: "₹0",
-    subtitle: "For getting started",
-    commission: "15% commission",
-    features: [
-      "1 paid product",
-      "Basic subscriber management",
-      "Manual Telegram access",
-      "Community support",
-    ],
-  },
-  {
-    key: "starter",
-    name: "Starter",
-    price: "₹999",
-    subtitle: "per month",
-    commission: "5% commission",
-    highlighted: true,
-    features: [
-      "Up to 5 products",
-      "Telegram auto-add & auto-remove",
-      "Custom creator pages",
-      "Analytics dashboard",
-    ],
-  },
-  {
-    key: "pro",
-    name: "Pro",
-    price: "₹2,499",
-    subtitle: "per month",
-    commission: "3% commission",
-    features: [
-      "Unlimited products",
-      "Priority Telegram automation",
-      "Advanced analytics",
-      "Early access to Discord & WhatsApp",
-    ],
-  },
-];
+  const [upgrading, setUpgrading] = useState<string | null>(null);
+
 
 
 
@@ -80,6 +38,7 @@ export default function BillingPage() {
 }, [status, session]);
 
   async function upgrade(plan: string) {
+    setUpgrading(plan);
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/billing/upgrade`,
     {
@@ -128,9 +87,10 @@ export default function BillingPage() {
 
   return (
     <PricingCards
-  plans={plans}
+  plans={PRICING_PLANS_UI}
   currentPlan={creator.plan}
   onAction={upgrade}
+  upgradingPlan={upgrading}
 />
 
   );

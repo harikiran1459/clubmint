@@ -80,30 +80,13 @@ const razorpay = new Razorpay({
 //   }
 // });
 
-// GET /payouts/status
-router.get("/status", requireAuth, async (req, res) => {
-  const creator = await prisma.creator.findUnique({
-    where: { userId: req.userId },
-    select: {
-      stripeAccountId: true, // (your Razorpay account ID)
-    },
-  });
+const MIN_PAYOUT = 10000; // ₹100 in paise
 
-  if (!creator) {
-    return res.status(404).json({ error: "Creator not found" });
-  }
-
-  // For now:
-  // - if accountId exists → connected
-  // - later we’ll enhance with webhook-based status
-  res.json({
-    connected: Boolean(creator.stripeAccountId),
-    accountId: creator.stripeAccountId,
-    status: creator.stripeAccountId ? "pending" : "not_connected",
-  });
-});
-
-// GET /payouts/transactions
+/* =====================================================
+   GET /payouts/transactions
+   - Always visible
+   - Source: Payment table
+===================================================== */
 router.get("/transactions", requireAuth, async (req, res) => {
   try {
     const creator = await prisma.creator.findUnique({
@@ -112,14 +95,6 @@ router.get("/transactions", requireAuth, async (req, res) => {
 
     if (!creator) {
       return res.json({ ok: true, payments: [] });
-    }
-
-    if (!creator.stripeAccountId) {
-      return res.json({
-        ok: true,
-        payments: [],
-        connected: false,
-      });
     }
 
     const payments = await prisma.payment.findMany({
@@ -133,14 +108,13 @@ router.get("/transactions", requireAuth, async (req, res) => {
 
     return res.json({
       ok: true,
-      connected: true,
       payments: payments.map((p) => ({
         id: p.id,
         date: p.createdAt,
         product: p.product.title,
-        subscriber: p.user.email
+        subscriber: p.user?.email
           ? p.user.email.replace(/(.{2}).+(@.+)/, "$1***$2")
-          : "Unknown",
+          : "Guest",
         gross: p.amount,
         commission: p.commission,
         net: p.creatorAmount,
@@ -153,152 +127,21 @@ router.get("/transactions", requireAuth, async (req, res) => {
   }
 });
 
-
-router.get("/admin/payouts/pending", requireAuth, requireAdmin, async (req, res) => {
-  // TODO: add admin check later
-  const creators = await prisma.creator.findMany({
-  where: {
-    earnings: {
-      some: { status: "PENDING" },
-    },
-  },
-  include: {
-    earnings: {
-      where: { status: "PENDING" },
-    },
-  },
-});
-
-const data = creators.map((c) => ({
-  creatorId: c.id,
-  handle: c.handle,
-  totalPending: c.earnings.reduce(
-    (sum, e) => sum + e.netAmount,
-    0
-  ),
-  payoutMethod: c.payoutMethod,
-  bankName: c.bankName,
-  accountNumber: c.accountNumber,
-  ifsc: c.ifsc,
-  accountHolder: c.accountHolder,
-  upiId: c.upiId,
-}));
-
-res.json({ ok: true, data });
-
-});
-
-router.post("/admin/payouts/run", requireAuth, requireAdmin, async (req, res) => {
-  const { creatorId } = req.body;
-
-  const earnings = await prisma.creatorEarning.findMany({
-  where: {
-    creatorId,
-    status: "PENDING",
-  },
-  orderBy: {
-    createdAt: "asc",
-  },
-});
-
-if (earnings.length === 0) {
-  return res.json({ ok: false, error: "No pending earnings" });
-}
-
-const total = earnings.reduce(
-  (sum, e) => sum + e.netAmount,
-  0
-);
-
-const periodStart = earnings[0].createdAt;
-const periodEnd = earnings[earnings.length - 1].createdAt;
-
-const existing = await prisma.payout.findFirst({
-  where: {
-    creatorId,
-    status: "COMPLETED",
-    periodEnd,
-  },
-});
-
-if (existing) {
-  return res.json({ ok: false, error: "Already paid" });
-}
-
-const creator = await prisma.creator.findUnique({
-  where: { id: creatorId },
-});
-
-if (!creator) {
-  return res.status(404).json({ error: "Creator not found" });
-}
-
-const hasValidDetails =
-  (creator.payoutMethod === "upi" && creator.upiId) ||
-  (creator.payoutMethod === "bank" &&
-    creator.accountNumber &&
-    creator.ifsc &&
-    creator.accountHolder);
-
-if (!hasValidDetails) {
-  return res.status(400).json({
-    error: "Creator payout details incomplete",
-  });
-}
-
-
-
-const payout = await prisma.payout.create({
-  data: {
-    creator: {
-      connect: { id: creatorId },
-    },
-    totalAmount: total,
-    status: "COMPLETED",
-    periodStart,
-    periodEnd,
-    paidAt: new Date(),
-  },
-});
-
-await prisma.creatorEarning.updateMany({
-  where: {
-    id: { in: earnings.map(e => e.id) },
-  },
-  data: {
-    status: "PAID",
-    payoutId: payout.id,
-  },
-});
-
-res.json({ ok: true, payoutId: payout.id });
-
-});
-
-
+/* =====================================================
+   GET /payouts/history
+   - Completed payouts only
+===================================================== */
 router.get("/history", requireAuth, async (req, res) => {
   try {
-    const userId = req.userId;
-
-    if (!userId) {
-      return res.status(401).json({ ok: false, error: "Unauthorized" });
-    }
-
-    // 1️⃣ Always derive creator from user
     const creator = await prisma.creator.findUnique({
-      where: { userId },
+      where: { userId: req.userId },
       select: { id: true },
     });
 
-    // 2️⃣ If creator doesn't exist yet, return empty payouts
     if (!creator) {
-      return res.json({
-        ok: true,
-        payouts: [],
-      });
+      return res.json({ ok: true, payouts: [] });
     }
 
-    // 3️⃣ Safe Prisma query (creator.id is guaranteed)
     const payouts = await prisma.payout.findMany({
       where: { creatorId: creator.id },
       orderBy: { paidAt: "desc" },
@@ -315,10 +158,134 @@ router.get("/history", requireAuth, async (req, res) => {
     return res.json({ ok: true, payouts });
   } catch (err) {
     console.error("❌ GET /payouts/history failed", err);
-    return res.status(500).json({ ok: false, error: "Internal server error" });
+    return res.status(500).json({ ok: false });
   }
 });
 
+/* =====================================================
+   ADMIN: GET /payouts/admin/pending
+   - Aggregated pending earnings per creator
+===================================================== */
+router.get(
+  "/admin/payouts/pending",
+  requireAuth,
+  requireAdmin,
+  async (_req, res) => {
+    const creators = await prisma.creator.findMany({
+      where: {
+        earnings: {
+          some: { status: "PENDING" },
+        },
+      },
+      include: {
+        earnings: {
+          where: { status: "PENDING" },
+        },
+      },
+    });
 
+    const data = creators.map((c) => ({
+      creatorId: c.id,
+      handle: c.handle,
+      totalPending: c.earnings.reduce(
+        (sum, e) => sum + e.netAmount,
+        0
+      ),
+      payoutMethod: c.payoutMethod,
+      bankName: c.bankName,
+      accountNumber: c.accountNumber,
+      ifsc: c.ifsc,
+      accountHolder: c.accountHolder,
+      upiId: c.upiId,
+    }));
+
+    res.json({ ok: true, data });
+  }
+);
+
+/* =====================================================
+   ADMIN: POST /payouts/admin/run
+   - Creates ONE payout
+   - Moves earnings: PENDING → PAID
+===================================================== */
+router.post(
+  "/admin/payouts/run",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const { creatorId } = req.body;
+
+    const earnings = await prisma.creatorEarning.findMany({
+      where: {
+        creatorId,
+        status: "PENDING",
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (earnings.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: "No pending earnings",
+      });
+    }
+
+    const total = earnings.reduce(
+      (sum, e) => sum + e.netAmount,
+      0
+    );
+
+    if (total < MIN_PAYOUT) {
+      return res.status(400).json({
+        ok: false,
+        error: "Minimum payout threshold not reached",
+      });
+    }
+
+    const creator = await prisma.creator.findUnique({
+      where: { id: creatorId },
+    });
+
+    if (!creator) {
+      return res.status(404).json({ error: "Creator not found" });
+    }
+
+    const hasValidDetails =
+      (creator.payoutMethod === "upi" && creator.upiId) ||
+      (creator.payoutMethod === "bank" &&
+        creator.accountNumber &&
+        creator.ifsc &&
+        creator.accountHolder);
+
+    if (!hasValidDetails) {
+      return res.status(400).json({
+        error: "Creator payout details incomplete",
+      });
+    }
+
+    const payout = await prisma.payout.create({
+      data: {
+        creatorId,
+        totalAmount: total,
+        status: "COMPLETED",
+        periodStart: earnings[0].createdAt,
+        periodEnd: earnings[earnings.length - 1].createdAt,
+        paidAt: new Date(),
+      },
+    });
+
+    await prisma.creatorEarning.updateMany({
+      where: {
+        id: { in: earnings.map((e) => e.id) },
+      },
+      data: {
+        status: "PAID",
+        payoutId: payout.id,
+      },
+    });
+
+    return res.json({ ok: true, payoutId: payout.id });
+  }
+);
 
 export default router;
