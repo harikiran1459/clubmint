@@ -1,4 +1,3 @@
-// apps/web/app/components/dashboard/MetricCard.tsx
 "use client";
 
 import clsx from "clsx";
@@ -30,15 +29,29 @@ export default function MetricCard({
   return (
     <div
       className={clsx(
-        "rounded-xl border bg-white/5 backdrop-blur-xl p-6",
-        subtle ? "border-white/5" : "border-white/10"
+        // base
+        "relative rounded-xl p-6 backdrop-blur-xl",
+        "transition-all duration-200 ease-out",
+
+        // background + border
+        subtle
+          ? "bg-white/3 border border-white/5"
+          : "bg-white/5 border border-white/10",
+
+        // hover polish
+        !subtle &&
+          "hover:border-white/20 hover:shadow-[0_0_0_1px_rgba(255,255,255,0.03)] hover:-translate-y-[1px]"
       )}
     >
-      <p className="text-sm text-white/60 mb-2">{title}</p>
+      {/* Title */}
+      <p className="text-xs font-medium uppercase tracking-wide text-white/50 mb-2">
+        {title}
+      </p>
 
+      {/* Value */}
       <p
         className={clsx(
-          "text-3xl font-bold",
+          "text-3xl font-semibold leading-tight",
           positive && "text-green-400",
           negative && "text-red-400",
           !positive && !negative && accentMap[accent]

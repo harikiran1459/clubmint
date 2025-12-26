@@ -425,3 +425,66 @@ model CreatorEarning {
 
   @@index([creatorId, status])
 }
+
+model AnalyticsEvent {
+  id          String   @id @default(uuid())
+
+  // Tenant isolation
+  creatorId   String
+
+  // Optional user (anonymous allowed)
+  userId      String?
+  sessionId   String
+
+  // Event identity
+  event       String            // e.g. "page_view", "checkout_start"
+  entityType  String?           // "page" | "product" | "subscription"
+  entityId    String?
+
+  // Flexible metadata (UTMs, amounts, provider, etc.)
+  metadata    Json?
+
+  // Request context
+  ip          String?
+  userAgent  String?
+  country    String?
+
+  createdAt  DateTime @default(now())
+
+  @@index([creatorId, createdAt])
+  @@index([event])
+  @@index([entityType, entityId])
+}
+
+model AnalyticsDaily {
+  id               String   @id @default(uuid())
+
+  creatorId        String
+  date             DateTime // normalized to YYYY-MM-DD (00:00 UTC)
+
+  // Acquisition
+  pageViews        Int      @default(0)
+  uniqueVisitors   Int      @default(0)
+  pricingViews     Int      @default(0)
+
+  // Checkout funnel
+  checkoutViews    Int      @default(0)
+  checkoutStarts   Int      @default(0)
+
+  // Payments
+  paymentsSuccess  Int      @default(0)
+  paymentsFailed   Int      @default(0)
+
+  // Subscriptions
+  subscriptionsNew Int      @default(0)
+  subscriptionsEnd Int      @default(0)
+
+  // Money (smallest unit aggregated later)
+  revenue          Int      @default(0) // store in paise/cents
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([creatorId, date])
+  @@index([creatorId, date])
+}

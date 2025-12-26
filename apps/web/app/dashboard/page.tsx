@@ -4,148 +4,153 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import MetricCard from "../components/dashboard/MetricCard";
 import RevenueChart from "../components/dashboard/RevenueChart";
+import FunnelChart from "../components/dashboard/FunnelChart";
+import PageSelector from "../components/dashboard/PageSelector";
+import PageFunnelChart from "../components/dashboard/PageFunnelChart";
+import PageProductTable from "../components/dashboard/PageProductTable";
+import SkeletonCard from "../components/dashboard/SkeletonCard";
+import SectionHeader from "../components/dashboard/SectionHeader";
 
+
+
+type OverviewStats = {
+  pageViews: number;
+  uniqueVisitors: number;
+  conversionRate: number;
+  revenue: number;
+};
 
 export default function DashboardHome() {
   const { data: session, status } = useSession();
-  const [stats, setStats] = useState<any>(null);
+
+  const [overview, setOverview] = useState<OverviewStats | null>(null);
+  const [timeseries, setTimeseries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-   const revenueTrend = [
-  { label: "Week 1", value: 12000 },
-  { label: "Week 2", value: 18000 },
-  { label: "Week 3", value: 26000 },
-  { label: "Week 4", value: 32000 },
-];
+  const [pages, setPages] = useState<any[]>([]);
+const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
 
 
   useEffect(() => {
     if (status !== "authenticated") return;
 
-    async function loadStats() {
-      try{
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/stats/creator/overview`,
-        {
-          headers: {
-            Authorization: `Bearer ${session?.user?.accessToken}`,
-          },
-        }
-      );
+    async function loadAnalytics() {
+      try {
+        const headers = {
+          Authorization: `Bearer ${session?.user?.accessToken}`,
+        };
 
-      const json = await res.json();
-      if (json.ok){
-      setStats(json.data);
-     console.log("STATS RESPONSE:", json);}
-     else {
-  setStats({
-    revenue: {
-      netThisMonth: 0,
-      mrr: 0,
-      commissionPaid: 0,
-    },
-    subscribers: {
-      active: 0,
-      newThisWeek: 0,
-      churnedThisMonth: 0,
-    },
-    products: {},
-    automation: { healthy: false },
-  });
-}
-    
-    } finally {
+        // ---------------- Overview cards ----------------
+        const overviewRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/stats/overview`,
+          { headers }
+        );
+        // ---------------- Creator pages ----------------
+const pagesRes = await fetch(
+  `${process.env.NEXT_PUBLIC_API_URL}/pages`,
+  { headers }
+);
+const pagesJson = await pagesRes.json();
+setPages(pagesJson.pages ?? []);
+
+        const overviewJson = await overviewRes.json();
+        setOverview(overviewJson.data);
+
+        // ---------------- Revenue chart ----------------
+        const tsRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/stats/timeseries?days=30`,
+          { headers }
+        );
+        const tsJson = await tsRes.json();
+
+        setTimeseries(
+          tsJson.data.map((d: any) => ({
+            label: new Date(d.date).toLocaleDateString(),
+            value: d.revenue / 100, // paise → INR
+          }))
+        );
+      } catch (err) {
+        console.error("Dashboard analytics load failed:", err);
+      } finally {
         setLoading(false);
       }
     }
 
-    loadStats();
+    loadAnalytics();
   }, [status, session]);
 
-  if (loading) {
-    return (
-      <div className="p-10 text-gray-400">
-        Loading your creator dashboard…
+  if (loading || !overview) {
+  return (
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonCard key={i} />
+        ))}
       </div>
-    );
-  }
+
+      <div className="h-64 rounded-xl border border-white/10 bg-white/5 animate-pulse" />
+    </div>
+  );
+}
+
 
   return (
+    
     <div className="space-y-10">
-      {/* ---------------- Revenue ---------------- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <SectionHeader
+  title="Overview"
+  subtitle="Traffic, conversions, and revenue"
+/>
+
+      {/* ---------------- Overview ---------------- */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        
         <MetricCard
-          title="Net Revenue (This Month)"
-          value={`₹${stats.revenue.netThisMonth ?? 0}`}
+          title="Page Views"
+          value={overview.pageViews}
+        />
+        <MetricCard
+          title="Unique Visitors"
+          value={overview.uniqueVisitors}
+        />
+        <MetricCard
+          title="Conversion Rate"
+          value={`${overview.conversionRate}%`}
+          positive={overview.conversionRate > 2}
+        />
+        <MetricCard
+          title="Revenue"
+          value={`₹${Math.round(overview.revenue / 100)}`}
           accent="purple"
         />
-        <MetricCard
-          title="MRR"
-          value={`₹${stats.revenue.mrr ?? 0}`}
-        />
-        <MetricCard
-          title="Commission Paid"
-          value={`₹${stats.revenue.commissionPaid ?? 0}`}
-          subtle
-        />
       </div>
 
-      {/* ---------------- Subscribers ---------------- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <MetricCard
-          title="Active Subscribers"
-          value={stats.subscribers.active}
-        />
-        <MetricCard
-          title="New This Week"
-          value={stats.subscribers.newThisWeek}
-          positive
-        />
-        <MetricCard
-          title="Churned This Month"
-          value={stats.subscribers.churnedThisMonth}
-          negative
-        />
+      {/* ---------------- Revenue Trend ---------------- */}
+      <SectionHeader
+  title="Revenue Trend"
+  subtitle="Last 30 days"
+/>
+
+      <div className="grid grid-cols-1">
+        <RevenueChart data={timeseries} />
       </div>
 
-      {/* ---------------- Health ---------------- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <MetricCard
-          title="Top Product"
-          value={
-            stats.products.topProduct
-              ? `${stats.products.topProduct.name} — ₹${stats.products.topProduct.revenue}`
-              : "No sales yet"
-          }
+      {/* ---------------- Funnel (next step) ---------------- */}
+      {/* FunnelChart will be added here */}
+      <FunnelChart days={30} />
+      {/* ---------------- Page Funnel ---------------- */}
+      <div className="space-y-4">
+        <PageSelector
+          pages={pages}
+          value={selectedPageId}
+          onChange={setSelectedPageId}
         />
 
-        <MetricCard
-          title="Telegram Automation"
-          value={
-            stats.automation.telegramStatus === "ok"
-              ? "All systems operational"
-              : stats.automation.telegramStatus === "warning"
-              ? `${stats.automation.pendingActions} pending actions`
-              : "Not connected"
-          }
-          accent={
-            stats.automation.telegramStatus === "ok"
-              ? "green"
-              : stats.automation.telegramStatus === "warning"
-              ? "yellow"
-              : "red"
-          }
-        />
-
-        <MetricCard
-          title="Automation Health"
-          value={stats.automation.healthy ? "Healthy" : "Issues"}
-          positive={stats.automation.healthy}
-          negative={!stats.automation.healthy}
-        />
-
-        <RevenueChart data={revenueTrend} />
-
+        <PageFunnelChart pageId={selectedPageId ?? ""} />
       </div>
+      {/* ---------------- Page → Product Funnel ---------------- */}
+      <PageProductTable pageId={selectedPageId ?? ""} />
+
+
     </div>
   );
 }

@@ -1,13 +1,13 @@
 # 📁 clubmint - Project Structure
 
-*Generated on: 12/15/2025, 8:54:41 PM*
+*Generated on: 12/26/2025, 11:26:40 PM*
 
 ## 📋 Quick Overview
 
 | Metric | Value |
 |--------|-------|
-| 📄 Total Files | 156 |
-| 📁 Total Folders | 83 |
+| 📄 Total Files | 237 |
+| 📁 Total Folders | 100 |
 | 🌳 Max Depth | 7 levels |
 | 🛠️ Tech Stack | React, TypeScript, CSS, Tailwind CSS, Node.js |
 
@@ -34,39 +34,41 @@
 
 ### By File Type
 
-- ⚛️ **.tsx** (React TypeScript files): 62 files (39.7%)
-- 🔷 **.ts** (TypeScript files): 38 files (24.4%)
-- 📄 **.sql** (Other files): 22 files (14.1%)
-- ⚙️ **.json** (JSON files): 13 files (8.3%)
-- 🖼️ **.jpeg** (JPEG images): 9 files (5.8%)
-- 🖼️ **.png** (PNG images): 2 files (1.3%)
-- 🎨 **.svg** (SVG images): 2 files (1.3%)
-- 📜 **.js** (JavaScript files): 2 files (1.3%)
-- 🚫 **.gitignore** (Git ignore): 1 files (0.6%)
-- ⚙️ **.toml** (TOML files): 1 files (0.6%)
-- 📄 **.prisma** (Other files): 1 files (0.6%)
-- 🎨 **.css** (Stylesheets): 1 files (0.6%)
-- 📄 **.mjs** (Other files): 1 files (0.6%)
-- ⚙️ **.yml** (YAML files): 1 files (0.6%)
+- ⚛️ **.tsx** (React TypeScript files): 72 files (30.4%)
+- 🔷 **.ts** (TypeScript files): 49 files (20.7%)
+- 🖼️ **.png** (PNG images): 46 files (19.4%)
+- 📄 **.sql** (Other files): 33 files (13.9%)
+- ⚙️ **.json** (JSON files): 13 files (5.5%)
+- 🖼️ **.jpeg** (JPEG images): 9 files (3.8%)
+- 🎨 **.svg** (SVG images): 4 files (1.7%)
+- 🖼️ **.jpg** (JPEG images): 2 files (0.8%)
+- 📜 **.js** (JavaScript files): 2 files (0.8%)
+- 🚫 **.gitignore** (Git ignore): 1 files (0.4%)
+- ⚙️ **.toml** (TOML files): 1 files (0.4%)
+- 📄 **.prisma** (Other files): 1 files (0.4%)
+- 🎨 **.css** (Stylesheets): 1 files (0.4%)
+- 📄 **.mjs** (Other files): 1 files (0.4%)
+- 🖼️ **.ico** (Icon files): 1 files (0.4%)
+- ⚙️ **.yml** (YAML files): 1 files (0.4%)
 
 ### By Category
 
-- **React**: 62 files (39.7%)
-- **TypeScript**: 38 files (24.4%)
-- **Other**: 24 files (15.4%)
-- **Config**: 15 files (9.6%)
-- **Assets**: 13 files (8.3%)
-- **JavaScript**: 2 files (1.3%)
-- **DevOps**: 1 files (0.6%)
-- **Styles**: 1 files (0.6%)
+- **React**: 72 files (30.4%)
+- **Assets**: 62 files (26.2%)
+- **TypeScript**: 49 files (20.7%)
+- **Other**: 35 files (14.8%)
+- **Config**: 15 files (6.3%)
+- **JavaScript**: 2 files (0.8%)
+- **DevOps**: 1 files (0.4%)
+- **Styles**: 1 files (0.4%)
 
 ### 📁 Largest Directories
 
-- **root**: 156 files
-- **apps**: 143 files
-- **apps\web**: 74 files
-- **apps\api**: 69 files
-- **apps\web\app**: 57 files
+- **root**: 237 files
+- **apps**: 224 files
+- **apps\api**: 133 files
+- **apps\web**: 91 files
+- **apps\web\app**: 67 files
 
 ## 🌳 Directory Structure
 
@@ -123,13 +125,38 @@ clubmint/
 │   │   │   │   │   └── 📄 migration.sql
 │   │   │   │   ├── 📂 20251215151409_add_creator_billing/
 │   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251216205453_add_alerts/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251218182332_add_razorpay_account/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251218190657_add_razorpay_account_2/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251218192501_add_payments/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251219183412_add_image/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251220183207_add_creator_ledger/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251220205100_add_bank/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251221061613_make_payment_user_optional/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251225191932_add_is_system_to_creator/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251225204140_add_is_system_to_creator_2/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251225205318_add_is_system_to_creator_3/
+│   │   │   │   │   └── 📄 migration.sql
 │   │   │   │   └── ⚙️ migration_lock.toml
 │   │   │   └── 📄 schema.prisma
 │   │   ├── 🔷 prisma.config.ts
 │   │   ├── 📂 scripts/
 │   │   │   └── 🔷 create-razorpay-plans.ts
 │   │   ├── 📁 src/
+│   │   │   ├── 📂 admin/
+│   │   │   │   └── 🔷 payouts.ts
 │   │   │   ├── ⚙️ config/
+│   │   │   │   ├── 🔷 planLimits.ts
 │   │   │   │   └── 🔷 plans.ts
 │   │   │   ├── 📂 cron/
 │   │   │   │   └── 🔷 subscriptionCheck.ts
@@ -138,25 +165,31 @@ clubmint/
 │   │   │   │   ├── 🔷 telegram.ts
 │   │   │   │   └── 🔷 telegramChatMember.ts
 │   │   │   ├── 📚 lib/
+│   │   │   │   ├── 🔷 creator.ts
 │   │   │   │   └── 🔷 razorpay.ts
 │   │   │   ├── 📂 middleware/
-│   │   │   │   └── 🔷 auth.ts
+│   │   │   │   ├── 🔷 auth.ts
+│   │   │   │   └── 🔷 rateLimit.ts
 │   │   │   ├── 📂 routes/
 │   │   │   │   ├── 🔷 auth.ts
 │   │   │   │   ├── 🔷 billing.ts
 │   │   │   │   ├── 🔷 checkout.ts
 │   │   │   │   ├── 🔷 creator.ts
 │   │   │   │   ├── 🔷 dashboard.ts
+│   │   │   │   ├── 🔷 earnings.ts
+│   │   │   │   ├── 🔷 me.ts
 │   │   │   │   ├── 🔷 pages.ts
 │   │   │   │   ├── 🔷 payments.ts
+│   │   │   │   ├── 🔷 payouts.ts
 │   │   │   │   ├── 🔷 products.ts
 │   │   │   │   ├── 🔷 public.ts
 │   │   │   │   ├── 🔷 razorpay-webhook.ts
 │   │   │   │   ├── 🔷 settings.ts
 │   │   │   │   ├── 🔷 stats.ts
+│   │   │   │   ├── 🔷 subscribers.ts
 │   │   │   │   ├── 🔷 subscriptions.ts
+│   │   │   │   ├── 🔷 telegram-dashboard.ts
 │   │   │   │   ├── 🔷 telegram-webhook.ts
-│   │   │   │   ├── 🔷 telegram.ts
 │   │   │   │   └── 🔷 upload.ts
 │   │   │   ├── 📂 stripe/
 │   │   │   │   └── 🔷 webhook.ts
@@ -165,6 +198,7 @@ clubmint/
 │   │   │   │   └── 🔷 global.d.ts
 │   │   │   └── 🔧 utils/
 │   │   │   │   ├── 🔷 auth.ts
+│   │   │   │   ├── 🔷 createAlert.ts
 │   │   │   │   ├── 🔷 logActivity.ts
 │   │   │   │   └── 🔷 minio.ts
 │   │   ├── 🟡 🔷 **tsconfig.json**
@@ -179,7 +213,51 @@ clubmint/
 │   │   │   ├── 🖼️ 1765609120298-WhatsApp_Image_2025-09-13_at_11.01.33_PM.jpeg
 │   │   │   ├── 🖼️ 1765727807987-WhatsApp_Image_2025-09-13_at_11.01.33_PM.jpeg
 │   │   │   ├── 🖼️ 1765727821845-WhatsApp_Image_2025-09-13_at_11.01.33_PM.jpeg
-│   │   │   └── 🖼️ 1765729474497-WhatsApp_Image_2025-11-01_at_12.51.35_PM.jpeg
+│   │   │   ├── 🖼️ 1765729474497-WhatsApp_Image_2025-11-01_at_12.51.35_PM.jpeg
+│   │   │   ├── 🖼️ 1766090299070-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766090723109-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766090745389-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766168031210-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766168385487-Screenshot_(12).png
+│   │   │   ├── 🖼️ 1766168405165-Screenshot_(71).png
+│   │   │   ├── 🖼️ 1766168465814-Screenshot_(70).png
+│   │   │   ├── 🖼️ 1766168989830-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766169139264-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766169294987-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766169771611-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766169940801-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766170048631-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766170341876-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766172899066-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766208423369-Screenshot_(12).png
+│   │   │   ├── 🖼️ 1766209623018-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766210335553-7650228.png
+│   │   │   ├── 🖼️ 1766210351419-1087741.jpg
+│   │   │   ├── 🖼️ 1766211565212-Screenshot_(63).png
+│   │   │   ├── 🖼️ 1766211593432-Screenshot_(71).png
+│   │   │   ├── 🖼️ 1766212029880-Screenshot_(71).png
+│   │   │   ├── 🖼️ 1766212083262-Screenshot_(75).png
+│   │   │   ├── 🖼️ 1766212462153-Screenshot_(12).png
+│   │   │   ├── 🖼️ 1766212589013-Screenshot_(12).png
+│   │   │   ├── 🖼️ 1766213030434-Screenshot_(12).png
+│   │   │   ├── 🖼️ 1766213040442-Screenshot_(13).png
+│   │   │   ├── 🖼️ 1766213165620-7650228.png
+│   │   │   ├── 🖼️ 1766214361360-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766215748160-Screenshot_(125).png
+│   │   │   ├── 🖼️ 1766215761237-Screenshot_(13).png
+│   │   │   ├── 🖼️ 1766217810609-7650228.png
+│   │   │   ├── 🖼️ 1766217871531-7650228.png
+│   │   │   ├── 🖼️ 1766217919547-Screenshot_(14).png
+│   │   │   ├── 🖼️ 1766218351900-7650228.png
+│   │   │   ├── 🖼️ 1766218382190-1087741.jpg
+│   │   │   ├── 🖼️ 1766218444805-Screenshot_(1).png
+│   │   │   ├── 🖼️ 1766219144693-Screenshot_(124).png
+│   │   │   ├── 🖼️ 1766219915251-Screenshot_(70).png
+│   │   │   ├── 🖼️ 1766219939436-Screenshot_(125).png
+│   │   │   ├── 🖼️ 1766220247439-Screenshot_(71).png
+│   │   │   ├── 🖼️ 1766220461783-Screenshot_(13).png
+│   │   │   ├── 🖼️ 1766223744597-Screenshot_(239).png
+│   │   │   └── 🖼️ 1766225205304-7650228.png
 │   └── 📂 web/
 │   │   ├── 🚀 app/
 │   │   │   ├── 📂 [handle]/
@@ -193,6 +271,7 @@ clubmint/
 │   │   │   ├── 🧩 components/
 │   │   │   │   ├── 📂 dashboard/
 │   │   │   │   │   ├── ⚛️ MetricCard.tsx
+│   │   │   │   │   ├── ⚛️ RevenueChart.tsx
 │   │   │   │   │   ├── ⚛️ Sidebar.tsx
 │   │   │   │   │   └── ⚛️ Topbar.tsx
 │   │   │   │   ├── 📂 landing/
@@ -202,19 +281,21 @@ clubmint/
 │   │   │   │   │   ├── ⚛️ Footer.tsx
 │   │   │   │   │   ├── ⚛️ Hero.tsx
 │   │   │   │   │   ├── ⚛️ HowItWorks.tsx
+│   │   │   │   │   ├── ⚛️ LogoStrip.tsx
 │   │   │   │   │   ├── ⚛️ Navbar.tsx
 │   │   │   │   │   ├── ⚛️ Pricing.tsx
-│   │   │   │   │   └── ⚛️ SectionWrapper.tsx
-│   │   │   │   └── ⚛️ PageRenderer.tsx
+│   │   │   │   │   ├── ⚛️ SectionWrapper.tsx
+│   │   │   │   │   └── ⚛️ Testimonials.tsx
+│   │   │   │   ├── ⚛️ PageRenderer.tsx
+│   │   │   │   └── ⚛️ PricingCards.tsx
 │   │   │   ├── 📂 create/
 │   │   │   │   └── ⚛️ page.tsx
-│   │   │   ├── 📂 creator/
-│   │   │   │   └── 📂 onboarding/
-│   │   │   │   │   └── ⚛️ page.tsx
-│   │   │   ├── 📂 creators/
-│   │   │   │   └── 📂 dashboard/
-│   │   │   │   │   └── ⚛️ page.tsx
 │   │   │   ├── 📂 dashboard/
+│   │   │   │   ├── 📂 admin/
+│   │   │   │   │   └── 📂 payouts/
+│   │   │   │   │   │   └── ⚛️ page.tsx
+│   │   │   │   ├── 📂 earnings/
+│   │   │   │   │   └── ⚛️ page.tsx
 │   │   │   │   ├── 📂 integrations/
 │   │   │   │   │   └── ⚛️ page.tsx
 │   │   │   │   ├── ⚛️ layout.tsx
@@ -233,8 +314,10 @@ clubmint/
 │   │   │   │   │   ├── 📂 [pageId]/
 │   │   │   │   │   │   └── ⚛️ page.tsx
 │   │   │   │   │   ├── 🧩 components/
+│   │   │   │   │   │   ├── ⚛️ AboutBlockEditor.tsx
 │   │   │   │   │   │   ├── ⚛️ AccessBlockEditor.tsx
 │   │   │   │   │   │   ├── ⚛️ BlockContainer.tsx
+│   │   │   │   │   │   ├── ⚛️ ContactBlockEditor.tsx
 │   │   │   │   │   │   ├── ⚛️ FAQBlockEditor.tsx
 │   │   │   │   │   │   ├── ⚛️ FeaturesBlockEditor.tsx
 │   │   │   │   │   │   ├── ⚛️ HeroBlockEditor.tsx
@@ -245,6 +328,8 @@ clubmint/
 │   │   │   │   │   │   └── ⚛️ page.tsx
 │   │   │   │   │   └── ⚛️ page.tsx
 │   │   │   │   ├── 📂 payments/
+│   │   │   │   │   └── ⚛️ page.tsx
+│   │   │   │   ├── 📂 payouts/
 │   │   │   │   │   └── ⚛️ page.tsx
 │   │   │   │   ├── 📂 products/
 │   │   │   │   │   ├── 📂 [productId]/
@@ -260,8 +345,14 @@ clubmint/
 │   │   │   ├── 📂 login/
 │   │   │   │   ├── ⚛️ LoginClient.tsx
 │   │   │   │   └── ⚛️ page.tsx
+│   │   │   ├── 📂 my-access/
+│   │   │   │   └── ⚛️ page.tsx
 │   │   │   ├── 📂 p/
 │   │   │   ├── ⚛️ page.tsx
+│   │   │   ├── 📂 post-login/
+│   │   │   │   └── ⚛️ page.tsx
+│   │   │   ├── 📂 pricing/
+│   │   │   │   └── ⚛️ page.tsx
 │   │   │   ├── 📂 providers/
 │   │   │   │   └── ⚛️ AuthProvider.tsx
 │   │   │   ├── 🌐 public/
@@ -282,6 +373,7 @@ clubmint/
 │   │   │   │   ├── ⚛️ RefundSection.tsx
 │   │   │   │   └── ⚛️ TestimonialsSection.tsx
 │   │   ├── 📚 lib/
+│   │   │   ├── 🔷 plans.ts
 │   │   │   └── 🔷 stripe.ts
 │   │   ├── 🔷 next-env.d.ts
 │   │   ├── 📄 next.config.mjs
@@ -292,8 +384,16 @@ clubmint/
 │   │   │   │   └── 📂 auth/
 │   │   │   │   │   └── 🔷 [...nextauth].ts
 │   │   ├── 📜 postcss.config.js
+│   │   ├── 🌐 public/
+│   │   │   ├── 🖼️ favicon.ico
+│   │   │   ├── 🎨 logo.svg
+│   │   │   ├── 🖼️ logo2.png
+│   │   │   ├── 🎨 logo2.svg
+│   │   │   └── 🖼️ og.png
 │   │   ├── 🟡 🎨 **tailwind.config.js**
-│   │   └── 🟡 🔷 **tsconfig.json**
+│   │   ├── 🟡 🔷 **tsconfig.json**
+│   │   └── 📂 types/
+│   │   │   └── 🔷 next-auth.d.ts
 ├── 🟡 🐳 **docker-compose.yml**
 ├── 🟡 🔒 **package-lock.json**
 ├── 🔴 📦 **package.json**
@@ -323,10 +423,12 @@ clubmint/
 - 🔷 TypeScript: TypeScript files
 - 🖼️ Assets: JPEG images
 - 🖼️ Assets: PNG images
+- 🖼️ Assets: JPEG images
 - ⚛️ React: React TypeScript files
 - 🎨 Styles: Stylesheets
 - 🎨 Assets: SVG images
 - 📜 JavaScript: JavaScript files
+- 🖼️ Assets: Icon files
 - ⚙️ Config: YAML files
 
 ### Importance Levels

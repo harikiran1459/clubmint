@@ -4,6 +4,9 @@ import { PrismaClient } from "@prisma/client";
 import { CLUBMINT_PLANS } from "../config/plans";
 import { createAlert } from "../utils/createAlert";
 import { strictLimiter } from "../middleware/rateLimit";
+import { trackEvent } from "../utils/trackEvent";
+import { ANALYTICS_EVENTS } from "../analytics/events";
+
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -90,6 +93,27 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
         planExpiresAt: null,
       },
     });
+        // ------------------------------------------------
+    // Analytics: subscription created / renewed
+    // ------------------------------------------------
+    await trackEvent({
+      creatorId: creator.id,
+      sessionId: sub.id,
+
+      event:
+        event === "subscription.activated"
+          ? ANALYTICS_EVENTS.SUBSCRIPTION_CREATED
+          : ANALYTICS_EVENTS.SUBSCRIPTION_RENEWED,
+
+      entityType: "subscription",
+      entityId: sub.id,
+
+      metadata: {
+        plan: planKey,
+        provider: "razorpay",
+      },
+    });
+
   }
 
   /* -------------------------------------------
@@ -112,6 +136,24 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
           amount: payload.payment?.entity?.amount,
         }
       );
+            // ------------------------------------------------
+      // Analytics: payment_failed (subscription)
+      // ------------------------------------------------
+      await trackEvent({
+        creatorId: creator.id,
+        sessionId: sub.id,
+
+        event: ANALYTICS_EVENTS.PAYMENT_FAILED,
+
+        entityType: "subscription",
+        entityId: sub.id,
+
+        metadata: {
+          provider: "razorpay",
+          amount: payload.payment?.entity?.amount,
+        },
+      });
+
     }
   }
 
@@ -150,6 +192,24 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
         planExpiresAt: new Date(),
       },
     });
+        // ------------------------------------------------
+    // Analytics: subscription canceled / expired
+    // ------------------------------------------------
+    await trackEvent({
+      creatorId: creator?.id ?? "unknown",
+      sessionId: sub.id,
+
+      event: ANALYTICS_EVENTS.SUBSCRIPTION_CANCELED,
+
+      entityType: "subscription",
+      entityId: sub.id,
+
+      metadata: {
+        provider: "razorpay",
+        reason: event,
+      },
+    });
+
 
     await prisma.accessControl.updateMany({
       where: {
@@ -214,6 +274,26 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
         status: "paid",
       },
     });
+        // ------------------------------------------------
+    // Analytics: payment_success
+    // ------------------------------------------------
+    await trackEvent({
+      creatorId: payment.creatorId,
+      sessionId: payment.razorpayOrderId,
+
+      event: ANALYTICS_EVENTS.PAYMENT_SUCCESS,
+
+      entityType: "payment",
+      entityId: payment.id,
+
+      metadata: {
+        amount: paymentEntity.amount, // paise
+        currency: "INR",
+        provider: "razorpay",
+        subscriptionId: paymentEntity.subscription_id,
+      },
+    });
+
 
     const subscription = await prisma.subscription.findFirst({
       where: {

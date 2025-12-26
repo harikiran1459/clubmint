@@ -26,6 +26,7 @@ import payoutsroutes from "./routes/payouts";
 import razorpayWebhookRoutes from "./routes/razorpay-webhook";
 import earningsRouter from "./routes/earnings";
 import meRoutes from "./routes/me";
+import "./cron/analyticsDaily";
 
 
 

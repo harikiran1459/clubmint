@@ -4,13 +4,12 @@ import { PrismaClient } from "@prisma/client";
 import Razorpay from "razorpay";
 import { requireAuth } from "../middleware/auth";
 import { publicLimiter } from "../middleware/rateLimit";
+import { trackEvent } from "../utils/trackEvent";
+import { ANALYTICS_EVENTS } from "../analytics/events";
+
 
 const router = Router();
 const prisma = new PrismaClient();
-
-// const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-//   apiVersion: "2022-11-15",
-// });
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID!,
@@ -88,6 +87,30 @@ router.post("/create",publicLimiter, async (req, res) => {
       currency: "INR",
       receipt: `rcpt_${Date.now()}`,
     });
+        // ------------------------------------------------
+    // Analytics: checkout_start (backend-verified)
+    // ------------------------------------------------
+    await trackEvent({
+      creatorId: creator.id,
+      sessionId: req.headers["x-session-id"] as string || order.id,
+
+      event: ANALYTICS_EVENTS.CHECKOUT_START,
+
+      entityType: "creator",
+      entityId: creator.id,
+
+      metadata: {
+        productIds: products.map((p) => p.id),
+        totalAmount: amount, // paise
+        currency: "INR",
+        provider: "razorpay",
+        productCount: products.length,
+      },
+
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
 
     // ------------------------------------------------
     // Record payment rows (one per product)
