@@ -265,27 +265,23 @@ export async function handleTelegramUpdate(update: any) {
   Object.keys(update)
 );
     const msg = update.message ||
-      update.edited_message ||
-      update.channel_post ||
-      update.edited_channel_post;
-    if (!msg || !msg?.text || !msg.chat) {
+      update.channel_post;
+    if (!msg) {
       console.log("❌ No message/channel_post found");
       return};
+
+      if (typeof msg.text !== "string") {
+        console.log("❌ Message has no text");
+        return;
+      }
 
     // Ignore private chats
     if (msg.chat.type === "private") {
       console.log("❌ chat type is private, ignoring");
       return};
 
-    const rawText = msg.text ?? "";
-    const text = rawText
-      .replace(/\u200B/g, "")   // zero-width space
-      .replace(/\u2011|\u2013|\u2014/g, "-") // normalize dash
-      .trim();
-    if (!text) return;
-    if (!/^ClubMint-[A-Z0-9]{6,}$/.test(text)) {
-      return;
-    }
+    const text = msg.text.trim();
+    if (!text.startsWith("ClubMint-")) return;
 
     const chat = msg.chat;
     const tgGroupId = BigInt(chat.id);
