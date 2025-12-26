@@ -126,7 +126,13 @@ router.get("/:id/available-groups", requireAuth, async (req, res) => {
     orderBy: { createdAt: "asc" },
   });
 
-  res.json({ ok: true, groups });
+  const safeGroups = groups.map((g) => ({
+  ...g,
+  tgGroupId: g.tgGroupId.toString(), // 👈 FIX
+}));
+
+res.json({ ok: true, groups: safeGroups });
+
 });
 
 /* =====================================================
