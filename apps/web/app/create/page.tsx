@@ -27,7 +27,7 @@ export default function BecomeCreatorPage() {
     const token = session?.user.accessToken;
 
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/creator/onboard`,
+      `${process.env.NEXT_PUBLIC_API_URL}/creators/onboard`,
       {
         method: "POST",
         headers: {

@@ -76,10 +76,10 @@ app.use(
   "/uploads",
   express.static(path.join(__dirname, "../uploads"))
 );
-app.use("/creators", (req, res, next) => {
-  console.log("[MOUNT] /creators router hit:", req.method, req.url);
-  next();
-}, creatorRoutes);
+// app.use("/creators", (req, res, next) => {
+//   console.log("[MOUNT] /creators router hit:", req.method, req.url);
+//   next();
+// }, creatorRoutes);
 app.use("/creators", creatorRoutes);
 app.use("/me", meRoutes);
 app.use("/dashboard", dashboardRoutes);
