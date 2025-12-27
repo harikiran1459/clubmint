@@ -16,13 +16,10 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET!,
 });
 
-router.post("/create",publicLimiter, async (req, res) => {
+router.post("/create", publicLimiter, async (req, res) => {
   try {
     const { productIds } = req.body;
 
-    // ------------------------------------------------
-    // Validate input
-    // ------------------------------------------------
     if (!Array.isArray(productIds) || productIds.length === 0) {
       return res.status(400).json({
         ok: false,
@@ -30,114 +27,77 @@ router.post("/create",publicLimiter, async (req, res) => {
       });
     }
 
-    // ------------------------------------------------
-    // Load products
-    // ------------------------------------------------
+    // Load products + creator
     const products = await prisma.product.findMany({
-      where: {
-        id: { in: productIds },
-      },
-      include: {
-        creator: true,
-      },
+      where: { id: { in: productIds } },
+      include: { creator: true },
     });
 
     if (products.length === 0) {
-      return res.status(404).json({
-        ok: false,
-        error: "Products not found",
-      });
+      return res.status(404).json({ ok: false, error: "Products not found" });
     }
 
-    // ------------------------------------------------
-    // Ensure all products belong to SAME creator
-    // ------------------------------------------------
     const creator = products[0].creator;
 
-    const mixedCreators = products.some(
-      (p) => p.creatorId !== creator.id
-    );
-
-    if (mixedCreators) {
+    // Ensure same creator
+    if (products.some((p) => p.creatorId !== creator.id)) {
       return res.status(400).json({
         ok: false,
-        error: "Products must belong to the same creator",
+        error: "Products must belong to same creator",
       });
     }
 
-    // ------------------------------------------------
-    // Calculate totals (IN PAISE)
-    // ------------------------------------------------
+    // 💰 Amount calculation (PAISE ONLY)
     const amount = products.reduce(
       (sum, p) => sum + p.priceCents,
       0
     );
 
-    const commission = Math.round(
-      (amount * creator.commissionPct) / 100
-    );
-
-    const creatorAmount = amount - commission;
-
-    // ------------------------------------------------
     // Create Razorpay order
-    // ------------------------------------------------
     const order = await razorpay.orders.create({
-      amount,
+      amount, // paise
       currency: "INR",
       receipt: `rcpt_${Date.now()}`,
     });
-        // ------------------------------------------------
-    // Analytics: checkout_start (backend-verified)
-    // ------------------------------------------------
+
+    // Analytics: checkout start
     await trackEvent({
       creatorId: creator.id,
-      sessionId: req.headers["x-session-id"] as string || order.id,
-
+      sessionId:
+        (req.headers["x-session-id"] as string) ?? order.id,
       event: ANALYTICS_EVENTS.CHECKOUT_START,
-
       entityType: "creator",
       entityId: creator.id,
-
       metadata: {
-        productIds: products.map((p) => p.id),
-        totalAmount: amount, // paise
+        productIds,
+        totalAmount: amount,
         currency: "INR",
         provider: "razorpay",
-        productCount: products.length,
       },
-
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
 
-
-    // ------------------------------------------------
-    // Record payment rows (one per product)
-    // ------------------------------------------------
     await prisma.payment.createMany({
-      data: products.map((p) => ({
-        razorpayOrderId: order.id,
-        razorpayPaymentId: null,
-        amount: p.priceCents,
-        commission: Math.round(
-          (p.priceCents * 100 * creator.commissionPct) / 100
-        ),
-        creatorAmount:
-          p.priceCents * 100 -
-          Math.round(
-            (p.priceCents * 100 * creator.commissionPct) / 100
-          ),
-        status: "created",
-        creatorId: creator.id,
-        productId: p.id,
-        userId: null, // 👈 PUBLIC CHECKOUT
-      })),
-    });
+  data: products.map((p) => ({
+    razorpayOrderId: order.id,
+    razorpayPaymentId: null,
 
-    // ------------------------------------------------
-    // Response to frontend
-    // ------------------------------------------------
+    // 🔐 ALWAYS paise
+    amount: p.priceCents,
+
+    // ⚠️ placeholders — real money calculated in webhook
+    commission: 0,
+    creatorAmount: 0,
+
+    status: "created",
+    creatorId: creator.id,
+    productId: p.id,
+    userId: null, // public checkout
+  })),
+});
+
+
     return res.json({
       ok: true,
       key: process.env.RAZORPAY_KEY_ID,
@@ -155,7 +115,6 @@ router.post("/create",publicLimiter, async (req, res) => {
     });
   }
 });
-
 
 
 export default router;

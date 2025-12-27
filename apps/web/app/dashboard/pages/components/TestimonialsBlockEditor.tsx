@@ -1,11 +1,9 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import ImageUploader from "../../../../components/ImageUploader";
 
 type Testimonial = {
   name: string;
-  role?: string;
-  company?: string;
   text: string;
   rating: number;
   avatar?: string;
@@ -22,34 +20,35 @@ export default function TestimonialsBlockEditor({
   const data = block.data || {};
   const [items, setItems] = useState<Testimonial[]>(data.items || []);
 
+  // 🔒 sync from block only when it actually changes
+  useEffect(() => {
+    if (Array.isArray(block.data?.items)) {
+      setItems(block.data.items);
+    }
+  }, [block.data?.items]);
+
   function apply(next: Testimonial[]) {
     setItems(next);
     onChange({ ...data, items: next });
+  }
+
+  function updateItem(i: number, patch: Partial<Testimonial>) {
+    const next = [...items];
+    next[i] = { ...next[i], ...patch };
+    apply(next);
   }
 
   function add() {
     apply([
       ...items,
       {
-        name: "Name",
-        role: "Role",
-        company: "Company",
+        name: "Customer name",
         text: "This product is incredible.",
         rating: 5,
         avatar: undefined,
         theme: "#ef4444",
       },
     ]);
-  }
-
-  function edit(
-    i: number,
-    field: keyof Testimonial,
-    value: any
-  ) {
-    const next = [...items];
-    next[i] = { ...next[i], [field]: value };
-    apply(next);
   }
 
   function remove(i: number) {
@@ -66,64 +65,47 @@ export default function TestimonialsBlockEditor({
         {items.map((t, i) => (
           <div
             key={i}
-            className="p-4 rounded-xl border border-neutral-300 bg-white space-y-3"
+            className="p-4 rounded-xl border border-neutral-300 bg-white space-y-4"
           >
-            {/* Header */}
-            <div className="flex gap-3 items-center">
-              <div className="w-12 h-12 rounded-full overflow-hidden bg-neutral-100">
-                <ImageUploader
-                  currentUrl={t.avatar}
-                  onChange={(url) =>
-                    edit(i, "avatar", url ?? undefined)
-                  }
-                />
-              </div>
+            {/* Avatar uploader */}
+            <ImageUploader
+              label="Avatar"
+              currentUrl={t.avatar}
+              onChange={(url: string) =>
+                updateItem(i, { avatar: url })
+              }
+            />
 
-              <div className="flex-1">
-                <input
-                  value={t.name}
-                  onChange={(e) =>
-                    edit(i, "name", e.target.value)
-                  }
-                  className="w-full text-m font-semibold border rounded px-2 py-1"
-                  placeholder="Name"
-                />
-                {/* <input
-                  value={t.role}
-                  onChange={(e) =>
-                    edit(i, "role", e.target.value)
-                  }
-                  className="w-full text-xs border rounded px-2 py-1 mt-1"
-                  placeholder="Role / Title"
-                />
-                <input
-                  value={t.company || ""}
-                  onChange={(e) => edit(i, "company", e.target.value)}
-                  className="w-full p-2 rounded border border-neutral-200 bg-white text-neutral-900"
-                  placeholder="Company (optional)"
-                /> */}
+            {/* Name */}
+            <input
+              value={t.name}
+              onChange={(e) =>
+                updateItem(i, { name: e.target.value })
+              }
+              className="w-full text-sm font-semibold border rounded px-3 py-2"
+              placeholder="Name"
+            />
 
-              </div>
-            </div>
-
-            {/* Text */}
+            {/* Quote */}
             <textarea
               value={t.text}
               onChange={(e) =>
-                edit(i, "text", e.target.value)
+                updateItem(i, { text: e.target.value })
               }
               rows={3}
-              className="w-full p-2 rounded border"
+              className="w-full p-3 rounded border text-sm"
               placeholder="Testimonial text"
             />
 
             {/* Rating */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <span className="text-sm">Rating</span>
               <select
                 value={t.rating}
                 onChange={(e) =>
-                  edit(i, "rating", Number(e.target.value))
+                  updateItem(i, {
+                    rating: Number(e.target.value),
+                  })
                 }
                 className="border rounded px-2 py-1 text-sm"
               >
@@ -135,14 +117,14 @@ export default function TestimonialsBlockEditor({
               </select>
             </div>
 
-            {/* Theme color */}
-            <div className="flex items-center gap-2">
+            {/* Theme */}
+            <div className="flex items-center gap-3">
               <span className="text-sm">Card Color</span>
               <input
                 type="color"
                 value={t.theme ?? "#ef4444"}
                 onChange={(e) =>
-                  edit(i, "theme", e.target.value)
+                  updateItem(i, { theme: e.target.value })
                 }
               />
             </div>
@@ -150,7 +132,7 @@ export default function TestimonialsBlockEditor({
             <div className="text-right">
               <button
                 onClick={() => remove(i)}
-                className="px-3 py-1 text-sm rounded bg-red-50 text-red-600"
+                className="text-sm text-red-600"
               >
                 Remove
               </button>

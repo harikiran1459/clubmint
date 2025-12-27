@@ -10,10 +10,22 @@ export default function AboutBlockEditor({ block, onChange }: any) {
   const [mediaType, setMediaType] = useState<"image" | "video">(
     data.mediaType ?? "image"
   );
-  const [mediaUrl, setMediaUrl] = useState<string | undefined>(
-    data.mediaUrl
-  );
+  const [mediaUrl, setMediaUrl] = useState<string | undefined>(data.mediaUrl);
 
+  // 🔁 Sync when block changes
+  useEffect(() => {
+    setHeadline(data.headline ?? "About Us");
+    setText(data.text ?? "");
+    setMediaType(data.mediaType ?? "image");
+    setMediaUrl(data.mediaUrl);
+  }, [block.id]);
+
+  // 🔁 Clear media when type switches
+  useEffect(() => {
+    setMediaUrl(undefined);
+  }, [mediaType]);
+
+  // ⬆️ Push changes upward
   useEffect(() => {
     onChange({
       ...data,
@@ -67,7 +79,7 @@ export default function AboutBlockEditor({ block, onChange }: any) {
           value={mediaUrl ?? ""}
           onChange={(e) => setMediaUrl(e.target.value)}
           className="w-full p-3 rounded border bg-white"
-          placeholder="YouTube URL or upload a video/image"
+          placeholder="YouTube or MP4 URL"
         />
       )}
     </div>

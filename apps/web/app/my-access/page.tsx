@@ -18,37 +18,50 @@ export default function MyAccessPage() {
   const [access, setAccess] = useState<AccessItem[]>([]);
   const [isCreator, setIsCreator] = useState(false);
 
+useEffect(() => {
+  if (status !== "authenticated") return;
 
+  const token = (session?.user as any)?.accessToken;
+  if (!token) {
+    setLoading(false);
+    return;
+  }
 
-  useEffect(() => {
-    if (status !== "authenticated") return;
-
-    const token = (session?.user as any)?.accessToken;
-    if (!token) {
-      setLoading(false);
-      return};
-
-    (async () => {
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/me/access`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        const json = await res.json();
-        if (json.ok) {
-          setAccess(json.access);
-          setIsCreator(json.isCreator);
+  (async () => {
+    try {
+      // 1. Load access
+      const accessRes = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/me/access`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
         }
-      } finally {
-        setLoading(false);
+      );
+
+      const accessJson = await accessRes.json();
+      if (accessJson.ok) {
+        setAccess(accessJson.access);
       }
-    })();
-  }, [status, session]);
+
+      // 2. Load creator status (THIS WAS MISSING)
+      const creatorRes = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/me/creator-status`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const creatorJson = await creatorRes.json();
+      if (creatorJson.ok) {
+        setIsCreator(creatorJson.isCreator);
+      }
+    } catch (err) {
+      console.error("MyAccess load error:", err);
+    } finally {
+      setLoading(false);
+    }
+  })();
+}, [status, session]);
+
 
   if (status === "loading") {
     return (

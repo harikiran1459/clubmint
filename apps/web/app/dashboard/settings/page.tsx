@@ -42,7 +42,14 @@ const [upiId, setUpiId] = useState("");
         const json = await res.json();
 
         if (json.ok && json.creator) {
-          setProfile(json.creator);
+          setProfile((prev: any) => ({
+  ...(prev ?? {}),
+  ...json.creator,
+  user: {
+    ...(prev?.user ?? {}),
+    ...(json.creator?.user ?? {}),
+  },
+}));
           setName(json.creator.name ?? "");
           setBio(json.creator.bio ?? "");
           setPayoutMethod(json.creator.payoutMethod ?? "");
@@ -93,7 +100,15 @@ const [upiId, setUpiId] = useState("");
 
   if (json.ok && json.creator) {
     alert("Payout details saved successfully");
-  setProfile(json.creator);
+  setProfile((prev: any) => ({
+  ...(prev ?? {}),
+  ...json.creator,
+  user: {
+    ...(prev?.user ?? {}),
+    ...(json.creator?.user ?? {}),
+  },
+}));
+
 
   setPayoutMethod(json.creator.payoutMethod ?? "");
   setBankName(json.creator.bankName ?? "");
@@ -205,9 +220,18 @@ else {
               body: JSON.stringify({ profileImage: url }),
             });
 
-            setProfile((p: any) => ({ ...p, user: { ...p.user, image: url }, }));
-          }}
-        />
+            setProfile((p: any) => ({
+  ...(p ?? {}),
+  user: {
+    ...(p?.user ?? {}),
+    image: url,
+  },
+}));
+await update({
+      image: url,
+    });
+  }}
+/>
 
         <div className="muted" style={{ marginTop: 16 }}>
           Display Name

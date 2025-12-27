@@ -9,91 +9,96 @@ export default function Topbar() {
   const [open, setOpen] = useState(false);
 
   const displayName =
-    session?.user?.name || session?.user?.email || "User";
+    session?.user?.name ||
+    session?.user?.email ||
+    "User";
+
+  const avatarSrc = session?.user?.image
+    ? `${session.user.image}?v=${Date.now()}`
+    : null;
 
   return (
-    <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+    <div className="flex items-center justify-between px-6 py-4 border-b border-white/20 bg-neutral-900 backdrop-blur-xl">
       {/* LEFT */}
-      <div className="flex gap-6">
-      <div className=" p-3 bg-neutral-800 border-neutral rounded-lg flex gap-6">
-  <a
-    href="/dashboard"
-    className="text-m text-white/70 hover:text-white"
-  >
-    Dashboard
-  </a>
-  </div>
-  <div className="bg-black/30 p-3 bg-neutral-800 border-white-100 rounded-lg flex gap-6">
-  <a
-    href="/my-access"
-    className="text-m text-white/70 hover:text-white"
-  >
-    My Access
-  </a>
-</div>
-</div>
+      <div className="flex gap-3">
+        <Link
+          href="/dashboard"
+          className="px-4 py-2 rounded-lg text-m font-small text-white/70 hover:text-white hover:bg-white/5 transition"
+        >
+          Dashboard
+        </Link>
 
+        <Link
+          href="/my-access"
+          className="px-4 py-2 rounded-lg text-m font-small text-white/70 hover:text-white hover:bg-white/5 transition"
+        >
+          My Access
+        </Link>
+      </div>
 
       {/* RIGHT */}
       <div className="relative flex items-center gap-3">
-        {/* User info */}
-        <div className="text-right">
-          <p className="text-sm font-medium">{displayName}</p>
+        {/* User meta */}
+        <div className="text-right leading-tight">
+          <div className="text-sm font-medium">
+            {displayName}
+          </div>
           {session?.user?.creatorHandle && (
-            <p className="text-xs text-white/50">
+            <div className="text-xs text-white/50">
               @{session.user.creatorHandle}
-            </p>
+            </div>
           )}
         </div>
 
         {/* Avatar */}
-        
         <button
           onClick={() => setOpen(!open)}
-          className="w-9 h-9 rounded-full bg-purple-500/30 flex items-center justify-center"
+          className="relative w-9 h-9 rounded-full overflow-hidden bg-gradient-to-br from-purple-500/40 to-pink-500/40 border border-white/10 hover:ring-2 hover:ring-purple-500/40 transition"
         >
-          {session?.user?.image ? (
-          <img
-            src={session.user.image}
-            className="w-9 h-9 rounded-full object-cover"
-            alt="avatar"
-          />
+          {avatarSrc ? (
+            <img
+              src={avatarSrc}
+              alt="avatar"
+              className="w-full h-full object-cover"
+            />
           ) : (
-            <div className="w-9 h-9 rounded-full bg-purple-500/30 flex items-center justify-center">
-              <span className="text-sm font-bold">
-                {(session?.user?.name || "U")[0].toUpperCase()}
-              </span>
+            <div className="w-full h-full flex items-center justify-center text-sm font-bold">
+              {(displayName[0] || "U").toUpperCase()}
             </div>
           )}
         </button>
 
-        {/* DROPDOWN */}
+        {/* Dropdown */}
         {open && (
-          <div className="absolute right-0 top-12 w-44 rounded-lg bg-[#111] border border-white/10 shadow-xl z-50">
-            <Link
-              href="/dashboard"
-              className="block px-4 py-2 text-sm hover:bg-white/5"
-            >
+          <div className="absolute right-0 top-12 w-48 rounded-xl bg-[#111] border border-white/10 shadow-2xl overflow-hidden z-50">
+            <DropdownLink href="/dashboard">
               Dashboard
-            </Link>
-
-            <Link
-              href="/dashboard/payouts"
-              className="block px-4 py-2 text-sm hover:bg-white/5"
-            >
+            </DropdownLink>
+            <DropdownLink href="/dashboard/pages">
+              Pages
+            </DropdownLink>
+            <DropdownLink href="/dashboard/integrations">
+              Integrations
+            </DropdownLink>
+            <DropdownLink href="/dashboard/payouts">
               Payouts
-            </Link>
+            </DropdownLink>
 
-            <Link
-              href="/dashboard/settings"
-              className="block px-4 py-2 text-sm hover:bg-white/5"
-            >
+            <DropdownLink href="/dashboard/products">
+              Products
+            </DropdownLink>
+
+            <DropdownLink href="/dashboard/settings">
               Settings
-            </Link>
+            </DropdownLink>
+
+            <div className="border-t border-white/10" />
 
             <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+              onClick={() =>
+                signOut({ callbackUrl: "/login" })
+              }
+              className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-white/5"
             >
               Logout
             </button>
@@ -101,5 +106,24 @@ export default function Topbar() {
         )}
       </div>
     </div>
+  );
+}
+
+/* -------------------------------- */
+
+function DropdownLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="block px-4 py-3 text-sm hover:bg-white/5"
+    >
+      {children}
+    </Link>
   );
 }

@@ -2,61 +2,126 @@
 
 import { useEffect, useState } from "react";
 import { useSession, signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function SuccessPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-
   const [checking, setChecking] = useState(false);
   const [accessReady, setAccessReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const searchParams = new URLSearchParams(window.location.search);
+  const checkoutId = searchParams.get("checkout");
 
-  // ------------------------------------------------
-  // If logged in, check access status
-  // ------------------------------------------------
+
+  /* ------------------------------------------------
+     CHECK ACCESS (POLLING — WEBHOOK SAFE)
+  ------------------------------------------------ */
   useEffect(() => {
     if (status !== "authenticated") return;
 
     const token = (session?.user as any)?.accessToken;
     if (!token) return;
 
-    setChecking(true);
+    let attempts = 0;
+    const MAX_ATTEMPTS = 6;
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/access/status`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((r) => r.json())
-      .then((json) => {
+    async function checkAccess() {
+      attempts++;
+      setChecking(true);
+
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/access/status?checkout=${checkoutId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        const json = await res.json();
+
         if (json.ok && json.hasAccess) {
           setAccessReady(true);
+          return;
         }
-      })
-      .finally(() => setChecking(false));
-  }, [status, session]);
 
-  // ------------------------------------------------
-  // UI
-  // ------------------------------------------------
+        if (attempts < MAX_ATTEMPTS) {
+          setTimeout(checkAccess, 2000);
+        } else {
+          setFailed(true);
+        }
+      } catch {
+        if (attempts < MAX_ATTEMPTS) {
+          setTimeout(checkAccess, 2000);
+        } else {
+          setFailed(true);
+        }
+      } finally {
+        setChecking(false);
+      }
+    }
+
+    checkAccess();
+  }, [status, session, checkoutId]);
+
+  /* ------------------------------------------------
+     ROUTING HELPERS
+  ------------------------------------------------ */
+  function goNext() {
+    const role = (session?.user as any)?.role;
+
+    if (role === "creator") {
+      router.push("/dashboard");
+    } else {
+      router.push("/my-access"); // buyer destination
+    }
+  }
+
+  /* ------------------------------------------------
+     UI STATES
+  ------------------------------------------------ */
   if (status === "loading") {
     return <Centered>Checking payment…</Centered>;
   }
 
-  // ------------------------------------------------
-  // CASE 1: Buyer NOT logged in
-  // ------------------------------------------------
+if (!checkoutId) {
+  return (
+    <Centered>
+      <h1 className="text-2xl font-semibold">Nothing to confirm</h1>
+      <p className="text-white/60 mt-3">
+        This page is shown only after a successful payment.
+      </p>
+
+      <button
+        onClick={() => router.push("/")}
+        className="mt-6 bg-purple-600 px-6 py-3 rounded-xl font-semibold"
+      >
+        Go home
+      </button>
+    </Centered>
+  );
+}
+
+
+  /* -------- Buyer not logged in -------- */
   if (status !== "authenticated") {
     return (
       <Centered>
         <h1 className="text-3xl font-bold mb-4">🎉 Payment successful</h1>
+
         <p className="text-white/70 mb-6 max-w-md">
-          We’ve received your payment.  
-          One last step to activate your community access.
+          Your payment was received.  
+          Sign in to activate and view your access.
         </p>
 
         <button
-          onClick={() => signIn(undefined, { callbackUrl: "/success" })}
+          onClick={() =>
+            signIn(undefined, {
+              callbackUrl: `/success${checkoutId ? `?checkout=${checkoutId}` : ""}`,
+            })
+          }
           className="bg-purple-600 px-6 py-3 rounded-xl font-semibold"
         >
           Continue to sign in
@@ -69,56 +134,67 @@ export default function SuccessPage() {
     );
   }
 
-  // ------------------------------------------------
-  // CASE 2: Logged in, access still processing
-  // ------------------------------------------------
-  if (!accessReady) {
-  return (
-    <Centered>
-      <h1 className="text-3xl font-bold mb-4">Payment confirmed</h1>
-      <p className="text-white/70 mb-6">
-        Your payment was successful.  
-        Access is being activated.
-      </p>
+  /* -------- Logged in, waiting for webhook -------- */
+  if (!accessReady && !failed) {
+    return (
+      <Centered>
+        <h1 className="text-3xl font-bold mb-4">Payment confirmed</h1>
 
-      <button
-        onClick={() => router.push("/dashboard")}
-        className="bg-purple-600 px-6 py-3 rounded-xl font-semibold"
-      >
-        Go to dashboard
-      </button>
+        <p className="text-white/70 mb-6">
+          Your payment was successful.  
+          Activating your access…
+        </p>
 
-      <p className="mt-4 text-sm text-white/50">
-        If access is not active yet, it will appear shortly.
-      </p>
-    </Centered>
-  );
-}
+        <div className="animate-pulse text-white/50 text-sm">
+          This usually takes a few seconds
+        </div>
+      </Centered>
+    );
+  }
 
+  /* -------- Webhook delayed or failed -------- */
+  if (failed) {
+    return (
+      <Centered>
+        <h1 className="text-3xl font-bold mb-4">Almost there</h1>
 
-  // ------------------------------------------------
-  // CASE 3: Logged in, access ready
-  // ------------------------------------------------
+        <p className="text-white/70 mb-6 max-w-md">
+          Your payment is confirmed, but access is still syncing.  
+          It will appear shortly.
+        </p>
+
+        <button
+          onClick={goNext}
+          className="bg-purple-600 px-6 py-3 rounded-xl font-semibold"
+        >
+          Continue
+        </button>
+      </Centered>
+    );
+  }
+
+  /* -------- Access ready -------- */
   return (
     <Centered>
       <h1 className="text-3xl font-bold mb-4">🎉 You’re in!</h1>
+
       <p className="text-white/70 mb-6">
         Your access has been activated successfully.
       </p>
 
       <button
-        onClick={() => router.push("/dashboard")}
+        onClick={goNext}
         className="bg-purple-600 px-6 py-3 rounded-xl font-semibold"
       >
-        Go to dashboard
+        Continue
       </button>
     </Centered>
   );
 }
 
-// ------------------------------------------------
-// Helper layout
-// ------------------------------------------------
+/* ------------------------------------------------
+   CENTERED LAYOUT
+------------------------------------------------ */
 function Centered({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-6">

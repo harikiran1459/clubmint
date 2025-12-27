@@ -1,3 +1,5 @@
+// apps/api/src/routes/razorpay-webhook.ts
+
 import { Router } from "express";
 import crypto from "crypto";
 import { PrismaClient } from "@prisma/client";
@@ -7,20 +9,33 @@ import { strictLimiter } from "../middleware/rateLimit";
 import { trackEvent } from "../utils/trackEvent";
 import { ANALYTICS_EVENTS } from "../analytics/events";
 
-
 const router = Router();
 const prisma = new PrismaClient();
 
-const PLATFORM_FEE_FALLBACK = 10; // % if creator commission missing
+const PLATFORM_FEE_FALLBACK = 10; // %
 
-async function createAccessForProductSubscription(subscriptionId: string) {
+/* ======================================================
+   Helpers
+====================================================== */
+
+function verifySignature(req: any) {
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET!;
+  const body = JSON.stringify(req.body);
+
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(body)
+    .digest("hex");
+
+  return expected === req.headers["x-razorpay-signature"];
+}
+
+async function createTelegramAccess(subscriptionId: string) {
   const subscription = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
     include: {
       product: {
-        include: {
-          telegramGroups: true,
-        },
+        include: { telegramGroups: true },
       },
     },
   });
@@ -42,28 +57,22 @@ async function createAccessForProductSubscription(subscriptionId: string) {
   }
 }
 
+/* ======================================================
+   Webhook
+====================================================== */
+
 router.post("/razorpay", strictLimiter, async (req, res) => {
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET!;
-  const body = JSON.stringify(req.body);
-
-  const expectedSignature = crypto
-    .createHmac("sha256", secret)
-    .update(body)
-    .digest("hex");
-
-  const receivedSignature = req.headers["x-razorpay-signature"];
-
-  if (expectedSignature !== receivedSignature) {
+  if (!verifySignature(req)) {
     console.error("❌ Invalid Razorpay webhook signature");
     return res.status(400).send("Invalid signature");
   }
 
-  const event = req.body.event;
-  const payload = req.body.payload;
+  const { event, payload } = req.body;
 
-  /* -------------------------------------------
-     SUBSCRIPTION ACTIVATED / CHARGED
-  ------------------------------------------- */
+  /* --------------------------------------------------
+     CREATOR SUBSCRIPTION EVENTS
+  -------------------------------------------------- */
+
   if (
     event === "subscription.activated" ||
     event === "subscription.charged"
@@ -93,32 +102,20 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
         planExpiresAt: null,
       },
     });
-        // ------------------------------------------------
-    // Analytics: subscription created / renewed
-    // ------------------------------------------------
+
     await trackEvent({
       creatorId: creator.id,
       sessionId: sub.id,
-
       event:
         event === "subscription.activated"
           ? ANALYTICS_EVENTS.SUBSCRIPTION_CREATED
           : ANALYTICS_EVENTS.SUBSCRIPTION_RENEWED,
-
       entityType: "subscription",
       entityId: sub.id,
-
-      metadata: {
-        plan: planKey,
-        provider: "razorpay",
-      },
+      metadata: { plan: planKey, provider: "razorpay" },
     });
-
   }
 
-  /* -------------------------------------------
-     SUBSCRIPTION PAYMENT FAILED
-  ------------------------------------------- */
   if (event === "subscription.payment_failed") {
     const sub = payload.subscription.entity;
 
@@ -130,58 +127,26 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
       await createAlert(
         creator.id,
         "payment_failed",
-        "Subscription payment failed. Access may be revoked if not resolved.",
-        {
-          razorpaySubscriptionId: sub.id,
-          amount: payload.payment?.entity?.amount,
-        }
+        "Subscription payment failed",
+        { razorpaySubscriptionId: sub.id }
       );
-            // ------------------------------------------------
-      // Analytics: payment_failed (subscription)
-      // ------------------------------------------------
+
       await trackEvent({
         creatorId: creator.id,
         sessionId: sub.id,
-
         event: ANALYTICS_EVENTS.PAYMENT_FAILED,
-
         entityType: "subscription",
         entityId: sub.id,
-
-        metadata: {
-          provider: "razorpay",
-          amount: payload.payment?.entity?.amount,
-        },
       });
-
     }
   }
 
-  /* -------------------------------------------
-     SUBSCRIPTION CANCELLED / EXPIRED
-  ------------------------------------------- */
   if (
     event === "subscription.cancelled" ||
     event === "subscription.completed" ||
     event === "subscription.halted"
   ) {
     const sub = payload.subscription.entity;
-
-    const creator = await prisma.creator.findFirst({
-      where: { razorpaySubId: sub.id },
-    });
-
-    if (creator) {
-      await createAlert(
-        creator.id,
-        "subscription_cancelled",
-        "Your ClubMint subscription has been cancelled.",
-        {
-          razorpaySubscriptionId: sub.id,
-          event,
-        }
-      );
-    }
 
     await prisma.creator.updateMany({
       where: { razorpaySubId: sub.id },
@@ -192,24 +157,6 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
         planExpiresAt: new Date(),
       },
     });
-        // ------------------------------------------------
-    // Analytics: subscription canceled / expired
-    // ------------------------------------------------
-    await trackEvent({
-      creatorId: creator?.id ?? "unknown",
-      sessionId: sub.id,
-
-      event: ANALYTICS_EVENTS.SUBSCRIPTION_CANCELED,
-
-      entityType: "subscription",
-      entityId: sub.id,
-
-      metadata: {
-        provider: "razorpay",
-        reason: event,
-      },
-    });
-
 
     await prisma.accessControl.updateMany({
       where: {
@@ -223,26 +170,38 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
         revokedAt: new Date(),
       },
     });
+
+    await trackEvent({
+      creatorId: "unknown",
+      sessionId: sub.id,
+      event: ANALYTICS_EVENTS.SUBSCRIPTION_CANCELED,
+      entityType: "subscription",
+      entityId: sub.id,
+    });
   }
 
-  /* -------------------------------------------
-     PAYMENT CAPTURED  ✅ LEDGER ENTRY CREATED HERE
-  ------------------------------------------- */
+  /* --------------------------------------------------
+     PAYMENT CAPTURED → LEDGER CREATION
+  -------------------------------------------------- */
+
   if (event === "payment.captured") {
     const paymentEntity = payload.payment.entity;
 
-    const payment = await prisma.payment.findFirst({
+    // 🔑 IMPORTANT: fetch ALL payments for the order
+    const payments = await prisma.payment.findMany({
       where: { razorpayOrderId: paymentEntity.order_id },
     });
 
-    if (!payment) return res.sendStatus(200);
+    if (payments.length === 0) return res.sendStatus(200);
 
-    // Idempotency: do NOT double-create earnings
-    const existing = await prisma.creatorEarning.findFirst({
-      where: { paymentId: payment.id },
-    });
+    for (const payment of payments) {
+      // Idempotency
+      const exists = await prisma.creatorEarning.findUnique({
+        where: { paymentId: payment.id },
+      });
 
-    if (!existing) {
+      if (exists) continue;
+
       const creator = await prisma.creator.findUnique({
         where: { id: payment.creatorId },
       });
@@ -250,7 +209,7 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
       const commissionPct =
         creator?.commissionPct ?? PLATFORM_FEE_FALLBACK;
 
-      const gross = paymentEntity.amount; // paise
+      const gross = payment.amount; // paise
       const platformFee = Math.floor(
         (gross * commissionPct) / 100
       );
@@ -265,40 +224,35 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
           netAmount,
         },
       });
+
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          razorpayPaymentId: paymentEntity.id,
+          status: "paid",
+        },
+      });
     }
 
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        razorpayPaymentId: paymentEntity.id,
-        status: "paid",
-      },
-    });
-        // ------------------------------------------------
-    // Analytics: payment_success
-    // ------------------------------------------------
     await trackEvent({
-      creatorId: payment.creatorId,
-      sessionId: payment.razorpayOrderId,
-
+      creatorId: payments[0].creatorId,
+      sessionId: paymentEntity.order_id,
       event: ANALYTICS_EVENTS.PAYMENT_SUCCESS,
-
       entityType: "payment",
-      entityId: payment.id,
-
+      entityId: paymentEntity.id,
       metadata: {
-        amount: paymentEntity.amount, // paise
+        amount: paymentEntity.amount,
         currency: "INR",
         provider: "razorpay",
-        subscriptionId: paymentEntity.subscription_id,
       },
     });
 
-
+    // Activate subscription access (if applicable)
     const subscription = await prisma.subscription.findFirst({
       where: {
         provider: "razorpay",
-        providerSubscriptionId: paymentEntity.subscription_id,
+        providerSubscriptionId:
+          paymentEntity.subscription_id,
       },
     });
 
@@ -308,13 +262,14 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
         data: { status: "active" },
       });
 
-      await createAccessForProductSubscription(subscription.id);
+      await createTelegramAccess(subscription.id);
     }
   }
 
-  /* -------------------------------------------
-     PAYMENT REFUNDED → LEDGER REVERSED
-  ------------------------------------------- */
+  /* --------------------------------------------------
+     PAYMENT REFUND → LEDGER REVERSED
+  -------------------------------------------------- */
+
   if (event === "payment.refunded") {
     const paymentEntity = payload.payment.entity;
 
@@ -325,13 +280,11 @@ router.post("/razorpay", strictLimiter, async (req, res) => {
         },
         status: "PENDING",
       },
-      data: {
-        status: "REVERSED",
-      },
+      data: { status: "REVERSED" },
     });
   }
 
-  res.sendStatus(200);
+  return res.sendStatus(200);
 });
 
 export default router;

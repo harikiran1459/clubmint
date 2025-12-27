@@ -97,30 +97,37 @@ router.get("/transactions", requireAuth, async (req, res) => {
       return res.json({ ok: true, payments: [] });
     }
 
-    const payments = await prisma.payment.findMany({
-      where: { creatorId: creator.id },
-      orderBy: { createdAt: "desc" },
+    const earnings = await prisma.creatorEarning.findMany({
+  where: {
+    creatorId: creator.id,
+  },
+  orderBy: { createdAt: "desc" },
+  include: {
+    payment: {
       include: {
         product: { select: { title: true } },
         user: { select: { email: true } },
       },
-    });
+    },
+  },
+});
 
-    return res.json({
-      ok: true,
-      payments: payments.map((p) => ({
-        id: p.id,
-        date: p.createdAt,
-        product: p.product.title,
-        subscriber: p.user?.email
-          ? p.user.email.replace(/(.{2}).+(@.+)/, "$1***$2")
-          : "Guest",
-        gross: p.amount,
-        commission: p.commission,
-        net: p.creatorAmount,
-        status: p.status,
-      })),
-    });
+return res.json({
+  ok: true,
+  payments: earnings.map((e) => ({
+    id: e.id,
+    date: e.createdAt,
+    product: e.payment.product.title,
+    subscriber: e.payment.user?.email
+      ? e.payment.user.email.replace(/(.{2}).+(@.+)/, "$1***$2")
+      : "Guest",
+    gross: e.grossAmount,
+    commission: e.platformFee,
+    net: e.netAmount,
+    status: e.status === "PENDING" ? "created" : "paid",
+  })),
+});
+
   } catch (err) {
     console.error("❌ GET /payouts/transactions failed", err);
     return res.status(500).json({ ok: false });

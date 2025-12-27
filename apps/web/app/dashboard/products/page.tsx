@@ -115,7 +115,7 @@ export default function ProductsPage() {
           />
 
           <div className="muted" style={{ marginTop: 12 }}>
-            Price (USD)
+            Price (INR)
           </div>
           <input
             className="auth-input"
@@ -207,9 +207,9 @@ export default function ProductsPage() {
 
             {/* PRICE */}
             <div>
-              ${(p.priceCents / 100).toFixed(2)}
+              ₹{(p.priceCents / 100).toFixed(2)}
             </div>
-
+              
             {/* INTERVAL */}
             <div className="capitalize">
               {p.billingInterval}

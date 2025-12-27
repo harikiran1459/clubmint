@@ -73,11 +73,12 @@ export default function FeaturesBlockEditor({
             <button
               key={l}
               onClick={() => apply(items, l)}
-              className={`px-4 py-2 rounded border text-sm ${
-                layout === l
-                  ? "bg-purple-600 text-white"
-                  : "bg-white"
-              }`}
+              className={`px-4 py-2 rounded-full border text-sm transition ${
+  layout === l
+    ? "bg-purple-600 text-white shadow-md"
+    : "bg-white hover:bg-neutral-100"
+}`}
+
             >
               {l === "grid" ? "Grid" : "Split (Image + Text)"}
             </button>

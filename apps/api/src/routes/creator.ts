@@ -34,8 +34,19 @@ router.get("/by-user/:userId", async (req, res) => {
     const userId = String(req.params.userId);
 
     const creator = await prisma.creator.findUnique({
-      where: { userId },
-    });
+  where: { userId },
+  include: {
+    user: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true, // 🔑 THIS WAS MISSING
+      },
+    },
+  },
+});
+
 
     return res.json({
       ok: true,

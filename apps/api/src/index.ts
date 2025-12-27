@@ -1,6 +1,5 @@
 // apps/api/src/index.ts
 import express from "express";
-import path from "path";
 import dotenv from "dotenv";
 import bodyParser from "body-parser";
 import cors from "cors";
@@ -27,6 +26,8 @@ import razorpayWebhookRoutes from "./routes/razorpay-webhook";
 import earningsRouter from "./routes/earnings";
 import meRoutes from "./routes/me";
 import "./cron/analyticsDaily";
+import accessRoutes from "./routes/access";
+import path from "path";
 
 
 
@@ -71,11 +72,15 @@ app.use(
 // JSON for normal endpoints
 app.use(express.json());
 app.use("/", authRoutes);
-app.use("/creator", (req, res, next) => {
-  console.log("[MOUNT] /creator router hit:", req.method, req.url);
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "../uploads"))
+);
+app.use("/creators", (req, res, next) => {
+  console.log("[MOUNT] /creators router hit:", req.method, req.url);
   next();
 }, creatorRoutes);
-app.use("/creator", creatorRoutes);
+app.use("/creators", creatorRoutes);
 app.use("/me", meRoutes);
 app.use("/dashboard", dashboardRoutes);
 app.use("/billing", billingRoutes);
@@ -85,6 +90,7 @@ app.use("/pages", pagesRoutes);
 app.use("/", earningsRouter);
 app.use("/subscriptions", subscriptionRoutes);
 app.use("/subscribers", subscribersRoutes);
+app.use("/access", accessRoutes);
 app.use("/products", productRoutes);
 //app.use("/payments", paymentRoutes);
 app.use("/settings", settingsRoutes);

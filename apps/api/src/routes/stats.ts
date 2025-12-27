@@ -775,24 +775,29 @@ router.get("/creator/earnings", requireAuth, async (req, res) => {
     });
   }
 
-  const payments = await prisma.payment.findMany({
+  const agg = await prisma.creatorEarning.aggregate({
     where: {
       creatorId: creator.id,
-      status: "paid",
+      status: "PENDING", // or PAID+PENDING depending on definition
+    },
+    _sum: {
+      grossAmount: true,
+      platformFee: true,
+      netAmount: true,
+    },
+    _count: {
+      _all: true,
     },
   });
 
-  const totalRevenue = payments.reduce((s, p) => s + p.amount, 0);
-  const totalCommission = payments.reduce((s, p) => s + p.commission, 0);
-  const netEarnings = payments.reduce((s, p) => s + p.creatorAmount, 0);
-
   res.json({
     ok: true,
-    totalRevenue,
-    totalCommission,
-    netEarnings,
-    transactions: payments.length,
+    totalRevenue: agg._sum.grossAmount ?? 0,
+    totalCommission: agg._sum.platformFee ?? 0,
+    netEarnings: agg._sum.netAmount ?? 0,
+    transactions: agg._count._all ?? 0,
   });
 });
+
 
 export default router;

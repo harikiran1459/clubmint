@@ -45,18 +45,22 @@ function AnimatedPrice({
   );
 }
 
-function resolveImage(src?: string): string | undefined {
+export function resolveImage(src?: string): string | undefined {
   if (!src) return undefined;
 
-  if (src.startsWith("http")) return src;
+  // Absolute URLs (R2, S3, external)
+  if (src.startsWith("http://") || src.startsWith("https://")) {
+    return src;
+  }
 
-  // stored as "/uploads/xxx.png"
+  // Legacy local uploads (dev only)
   if (src.startsWith("/uploads")) {
     return `${process.env.NEXT_PUBLIC_API_URL}${src}`;
   }
 
   return undefined;
 }
+
 
 function pageBackgroundFromTheme(start?: string, end?: string) {
   const c1 = start ?? "#6a11cb";
@@ -150,10 +154,6 @@ export default function PageRenderer({
   )
 );
 
-
-  
-
-
   // Parallax refs
   const heroRef = useRef<HTMLDivElement | null>(null);
   const orbRef = useRef<HTMLDivElement | null>(null);
@@ -244,6 +244,7 @@ export default function PageRenderer({
   .filter((s) => s.type === "hero")
   .map((s) => {
     const d = s.data || {};
+    
     function handleHeroCTA() {
   if (s.data?.ctaAction === "scroll_to_features") {
     document.getElementById("features")?.scrollIntoView({ behavior: "smooth" });
@@ -274,6 +275,10 @@ export default function PageRenderer({
       (d.heroImage.startsWith("http")
         ? d.heroImage
         : `${process.env.NEXT_PUBLIC_API_URL}${d.heroImage}`);
+    const hasHeroImage = Boolean(heroImg);
+    const imageAlign = d.heroImageAlign ?? "right"; // left | right | center
+    const isStacked = !hasHeroImage || imageAlign === "center";
+
 
     return (
       <section
@@ -290,43 +295,64 @@ export default function PageRenderer({
       {page.creatorCompany ?? page.title}
     </div>
 
-    <nav className="flex gap-8 text-white/90 text-base font-medium">
-      {(d.links ?? []).map((l: any, i: number) => (
-        <a
-          key={i}
-          href={l.href}
-          className="hover:text-white transition"
-        >
-          {l.label}
-        </a>
-      ))}
-    </nav>
+    <div className="flex items-center gap-6">
+  <nav className="hidden md:flex gap-8 text-white/90 text-base font-medium">
+    {(d.links ?? []).map((l: any, i: number) => (
+      <a key={i} href={l.href} className="hover:text-white transition">
+        {l.label}
+      </a>
+    ))}
+  </nav>
+
+  {!editorMode && (
+    <a
+  href="/login"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="px-5 py-2.5 rounded-full bg-white text-black text-sm font-semibold hover:bg-neutral-100 transition"
+>
+  Login
+</a>
+  )}
+</div>
+
   </div>
 
   {/* Hero content */}
   <div
-    className={`
-      relative z-10 max-w-[1400px] mx-auto px-4 mt-20
-      grid gap-12 items-center
-      ${
-        d.heroImageAlign === "center"
-          ? "grid-cols-1 text-center"
-          : "grid-cols-1 md:grid-cols-2"
-      }
-    `}
-  >
+  className={clsx(
+    "relative z-10 max-w-[1400px] mx-auto px-4 mt-20 gap-12 items-center",
+    {
+      // No image OR center image → stacked + centered
+      "grid grid-cols-1 text-center place-items-center":
+        isStacked,
+
+      // Left / right image → 2 column layout
+      "grid grid-cols-1 md:grid-cols-2":
+        hasHeroImage && !isStacked,
+    }
+  )}
+>
+
+
     {/* Text */}
     <div
-      className={`
-        ${
-          d.heroImageAlign === "right"
-            ? "md:order-1"
-            : d.heroImageAlign === "left"
-            ? "md:order-2"
-            : ""
-        }
-      `}
-    >
+  className={clsx(
+    "flex flex-col gap-6",
+    {
+      "items-center justify-center min-h-[420px]":
+        !hasHeroImage,
+
+      "text-center items-center":
+        imageAlign === "center",
+
+      "items-start text-left":
+        hasHeroImage && imageAlign !== "center",
+    }
+  )}
+>
+
+
       <h1 className="text-5xl md:text-6xl font-extrabold text-white leading-tight">
         {d.headline}
       </h1>
@@ -347,27 +373,22 @@ export default function PageRenderer({
     </div>
 
     {/* Image */}
-    {heroImg && (
-      <div
-        className={`
-          ${
-            d.heroImageAlign === "right"
-              ? "md:order-2"
-              : d.heroImageAlign === "left"
-              ? "md:order-1"
-              : ""
-          }
-        `}
-      >
-        <img
-          src={heroImg}
-          className="w-full max-h-[520px] rounded-3xl shadow-2xl"
-          style={{
-            objectFit: d.heroImageFit ?? "contain",
-          }}
-        />
-      </div>
-    )}
+    {hasHeroImage && (
+  <div
+    className={clsx({
+      "md:order-1": imageAlign === "left",
+      "md:order-2": imageAlign === "right",
+      "order-2": imageAlign === "center",
+    })}
+  >
+    <img
+      src={heroImg}
+      className="w-full max-h-[520px] rounded-3xl shadow-2xl mx-auto"
+      style={{ objectFit: d.heroImageFit ?? "contain" }}
+    />
+  </div>
+)}
+
   </div>
 </section>
 
@@ -382,7 +403,11 @@ export default function PageRenderer({
   const mediaUrl = s.data.mediaUrl;
   const ytEmbed = mediaUrl ? resolveYouTubeEmbed(mediaUrl) : null;
   const isLocalVideo = mediaUrl?.endsWith(".mp4") || mediaUrl?.endsWith(".webm");
-  const imgSrc = resolveImage(s.data?.image);
+  const imgSrc =
+  s.data?.mediaType === "image"
+    ? resolveImage(s.data?.mediaUrl)
+    : null;
+
   const ytvideoSrc = resolveYouTubeEmbed(s.data?.video);
   const videoSrc = resolveMediaUrl(s.data?.video);
 
@@ -606,7 +631,7 @@ export default function PageRenderer({
             return (
               <div
                 key={pid}
-                className={`relative w-1/3 rounded-3xl p-[2px] ${
+                className={`relative w-full md:w-1/3 rounded-3xl p-[2px] ${
                   isFeatured ? "scale-[1.03]" : ""
                 }`}
                 style={{
@@ -719,9 +744,10 @@ rzp.open();
         <div className="flex overflow-x-auto snap-x snap-mandatory">
           {s.data.items?.map((t: any, idx: number) => {
             const avatarSrc =
-              typeof t.avatar === "string"
-                ? resolveImage(t.avatar) ?? undefined
-                : undefined;
+  typeof t.avatar === "string" && t.avatar.length > 0
+    ? resolveImage(t.avatar)
+    : undefined;
+
 
             const bg = t.theme ?? "#ef4444";
 

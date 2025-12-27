@@ -407,7 +407,7 @@ model CreatorEarning {
   id            String   @id @default(uuid())
 
   creatorId     String
-  paymentId     String
+  paymentId     String  @unique
   payoutId      String?
 
   grossAmount   Int
