@@ -1,7 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CLUBMINT_PLANS } from "../../../lib/plans";
+import { useEffect, useState } from "react";
+import {
+  PricingPlanUI,
+  mapPricingToUI,
+} from "../../../lib/plans";
 
 export default function PricingCards({
   currentPlan,
@@ -10,6 +14,36 @@ export default function PricingCards({
   currentPlan?: string;
   onUpgrade?: (plan: string) => void;
 }) {
+  const [plans, setPlans] = useState<PricingPlanUI[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/pricing`
+        );
+        const json = await res.json();
+
+        if (json.ok) {
+          setPlans(mapPricingToUI(json.plans));
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) {
+    return (
+      <section className="pricing">
+        <div className="container">
+          <div className="pricing-sub">Loading pricing…</div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="pricing">
       <div className="container">
@@ -27,40 +61,54 @@ export default function PricingCards({
 
         {/* Cards */}
         <div className="pricing-grid">
-          {Object.entries(CLUBMINT_PLANS).map(([key, plan], idx) => {
-            const isCurrent = currentPlan === key;
-            const isPopular = key === "starter"; // mark your best plan
+          {plans.map((plan, idx) => {
+            const isCurrent = currentPlan === plan.key;
+            const isPopular = plan.highlighted;
 
             return (
               <motion.div
-                key={key}
+                key={plan.key}
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: idx * 0.08 }}
-                className={`pricing-card ${isPopular ? "popular" : ""}`}
+                className={`pricing-card ${
+                  isPopular ? "popular" : ""
+                }`}
               >
                 {isPopular && (
-                  <div className="pricing-badge">Most popular</div>
+                  <div className="pricing-badge">
+                    Most popular
+                  </div>
                 )}
 
                 {isCurrent && (
-                  <div className="pricing-current">Current plan</div>
+                  <div className="pricing-current">
+                    Current plan
+                  </div>
                 )}
 
                 <h3 className="pricing-plan">{plan.name}</h3>
 
                 <div className="pricing-price">
-                  {plan.price === 0 ? (
-                    <span className="pricing-free">Free</span>
+                  {plan.price === "₹0" ? (
+                   <>
+                      <span className="currency">₹</span>
+                      {plan.price.replace("₹", "")}
+                      <span className="per"> / month</span>
+                    </>
                   ) : (
                     <>
                       <span className="currency">₹</span>
-                      {plan.price}
-                      <span className="per">/ month</span>
+                      {plan.price.replace("₹", "")}
+                      <span className="per"> / month</span>
                     </>
                   )}
                 </div>
+
+                {/* <div className="pricing-commission">
+                  {plan.commission}
+                </div> */}
 
                 <ul className="pricing-features">
                   {plan.features.map((f) => (
@@ -70,7 +118,7 @@ export default function PricingCards({
 
                 {onUpgrade && !isCurrent && (
                   <button
-                    onClick={() => onUpgrade(key)}
+                    onClick={() => onUpgrade(plan.key)}
                     className={`pricing-cta ${
                       isPopular ? "primary" : "secondary"
                     }`}

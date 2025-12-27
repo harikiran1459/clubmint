@@ -68,6 +68,41 @@ router.post("/", requireAuth, async (req, res) => {
 });
 
 /* =====================================================
+   POST /products/by-ids  (PUBLIC)
+   Used by pricing blocks on public pages
+===================================================== */
+router.post("/by-ids", async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.json({ ok: true, products: [] });
+    }
+
+    const products = await prisma.product.findMany({
+      where: {
+        id: { in: ids },
+        // optional safety if you add drafts later
+        // published: true,
+      },
+      select: {
+        id: true,
+        title: true,
+        priceCents: true,
+        billingInterval: true,
+        description: true,
+      },
+    });
+
+    res.json({ ok: true, products });
+  } catch (err) {
+    console.error("POST /products/by-ids error:", err);
+    res.status(500).json({ ok: false });
+  }
+});
+
+
+/* =====================================================
    DELETE /products/:id
 ===================================================== */
 router.delete("/:id", requireAuth, async (req, res) => {

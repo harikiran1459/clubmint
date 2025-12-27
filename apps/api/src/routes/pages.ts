@@ -211,39 +211,6 @@ router.post("/publish/:id", requireAuth, async (req, res) => {
 
 /**
  * ---------------------------------------------------------
- * POST /pages/create  → Creates a new blank page
- * ---------------------------------------------------------
- */
-router.post("/create", requireAuth, async (req, res) => {
-  try {
-    const creator = await prisma.creator.findUnique({
-      where: { userId: req.userId },
-    });
-
-    if (!creator)
-      return res.status(400).json({ ok: false, error: "Creator not found" });
-
-    const page = await prisma.creatorPage.create({
-      data: {
-        creatorId: creator.id,
-        slug: `new-page-${Date.now()}`,
-        title: "Untitled Page",
-        themeColor1: "#6a11cb",
-        themeColor2: "#000000",
-        sections: [],
-        published: false,
-      },
-    });
-
-    return res.json({ ok: true, page });
-  } catch (err) {
-    console.error("POST /pages/create error:", err);
-    return res.status(500).json({ ok: false });
-  }
-});
-
-/**
- * ---------------------------------------------------------
  * PUBLIC ROUTE (must be last)
  * GET /pages/:handle/:slug → Public viewer
  * ---------------------------------------------------------

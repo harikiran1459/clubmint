@@ -36,7 +36,7 @@ export default function PageEditorShell() {
   const router = useRouter();
   const { pageId } = useParams() as { pageId?: string };
   const { data: session, status } = useSession();
-
+  const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState<any | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
@@ -49,6 +49,26 @@ export default function PageEditorShell() {
 
   const creatorHandle =
     page?.creatorHandle ?? session?.user?.creatorHandle ?? null;
+
+    const SECTION_LABELS: Record<string, string> = {
+  hero: "Hero",
+  about: "About",
+  features: "Features",
+  testimonials: "Testimonials",
+  pricing: "Pricing",
+  access: "Access / CTA",
+  faq: "FAQ",
+  refund: "Refund Policy",
+  contact: "Contact",
+};
+
+function toggleCollapse(id: string) {
+  setCollapsedBlocks((prev) => ({
+    ...prev,
+    [id]: !prev[id],
+  }));
+}
+
 
   // ───────────────────────────
   // LOAD PAGE
@@ -289,11 +309,16 @@ setSections(normalizedSections);
       {/* LEFT: SETTINGS */}
       <aside className="space-y-6">
         <button
-          onClick={() => router.push("/dashboard/pages")}
-          className="text-sm underline"
-        >
-          ← Back to Pages
-        </button>
+  onClick={() => router.push("/dashboard/pages")}
+  className="px-4 py-2.5 text-sm font-semibold text-gray-700 bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl shadow-xs hover:shadow-sm hover:border-gray-300 transition-all duration-300 flex items-center gap-2.5 group hover:-translate-y-0.5"
+>
+  <div className="p-1.5 bg-gray-100 rounded-lg group-hover:bg-gray-200 transition-colors duration-200">
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+    </svg>
+  </div>
+  <span>Back to Pages</span>
+</button>
 
         <div className="bg-white text-neutral-900 rounded-xl p-4 border border-neutral-200 shadow-sm space-y-4">
           <h4 className="font-semibold">Basics</h4>
@@ -416,21 +441,43 @@ setSections(normalizedSections);
                         {...d.draggableProps}
                         className="bg-white text-neutral-900 rounded-xl p-4 border border-neutral-200 shadow-sm space-y-4"
                       >
-                        <div className="flex justify-between mb-3">
-                          <div
-                            {...d.dragHandleProps}
-                            className="cursor-grab text-neutral-400"
-                          >
-                            ☰
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div
+                              {...d.dragHandleProps}
+                              className="cursor-grab text-neutral-400"
+                            >
+                              ☰
+                            </div>
+
+                            <span className="font-semibold text-m px-2 rounded-full">
+                              {SECTION_LABELS[block.type] ?? block.type}
+                            </span>
                           </div>
+                          <div className="flex items-center gap-4">
                           <button
-                            onClick={() => removeBlock(block.id)}
-                            className="text-xs text-red-600"
+  onClick={() => removeBlock(block.id)}
+  className="p-2 text-red-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors duration-200 group"
+  title="Delete"
+>
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+</button>
+                          <button
+                            onClick={() => toggleCollapse(block.id)}
+                            className="text-s text-neutral-500 hover:text-neutral-800"
                           >
-                            Delete
+                            {collapsedBlocks[block.id] ? "▼" : "▲"}
                           </button>
+                          </div>
+
                         </div>
-                        {renderEditor(block)}
+                          {!collapsedBlocks[block.id] && (
+                            <div className="pt-2">
+                              {renderEditor(block)}
+                            </div>
+                          )}
                       </div>
                     )}
                   </Draggable>
@@ -444,3 +491,5 @@ setSections(normalizedSections);
     </div>
   );
 }
+
+
