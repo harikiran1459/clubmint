@@ -1,5 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 import { useEffect, useState } from "react";
 import { useSession, signIn } from "next-auth/react";
@@ -11,9 +12,18 @@ export default function SuccessPage() {
   const [checking, setChecking] = useState(false);
   const [accessReady, setAccessReady] = useState(false);
   const [failed, setFailed] = useState(false);
-  const searchParams = new URLSearchParams(window.location.search);
-  const checkoutId = searchParams.get("checkout");
+  const searchParams = useSearchParams();
+  const [checkoutId, setCheckoutId] = useState<string | null>(null);
 
+
+    /* --------------------------------------------
+     Read URL params (SAFE)
+  --------------------------------------------- */
+  useEffect(() => {
+    // useSearchParams is SSR-safe
+    const id = searchParams?.get("checkout") ?? null;
+    setCheckoutId(id);
+  }, [searchParams]);
 
   /* ------------------------------------------------
      CHECK ACCESS (POLLING — WEBHOOK SAFE)
