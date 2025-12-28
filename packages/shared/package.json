@@ -3,6 +3,9 @@
     "@types/node": "^25.0.3",
     "@types/node-telegram-bot-api": "^0.64.13"
   },
+  "name": "@clubmint/shared",
+  "main": "dist/telegram.js",
+  "types": "dist/telegram.d.ts",
   "scripts": {
     "build": "tsc -p ."
   },
