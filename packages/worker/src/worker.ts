@@ -116,69 +116,31 @@ for (const access of accesses) {
 /* =======================================================
    REVOKE ACCESS WORKER (AUTO-KICK)
 ======================================================= */
-new Worker(
-  "revoke-access",
-  async (job) => {
-    const { subscriptionId } = job.data;
-    if (!subscriptionId) throw new Error("subscriptionId missing");
+new Worker("revoke-access", async (job) => {
+  const { subscriptionId } = job.data;
 
-    console.log("🚫 Revoke-access:", subscriptionId);
+  const subscription = await prisma.subscription.findUnique({
+    where: { id: subscriptionId },
+    include: { accessControls: true },
+  });
 
-    const subscription = await prisma.subscription.findUnique({
-      where: { id: subscriptionId },
-      include: {
-        product: { include: { telegramGroups: true } },
-      },
-    });
+  if (!subscription || subscription.status !== "canceled") return;
+  if (!subscription.kickAfter) return;
+  if (Date.now() < subscription.kickAfter.getTime()) return;
 
-    if (!subscription) return;
+  for (const access of subscription.accessControls) {
+    if (
+      access.platform !== "telegram" ||
+      access.status !== "granted" ||
+      !access.platformUserId
+    ) continue;
 
-    if (!["canceled", "unpaid", "past_due"].includes(subscription.status)) {
-      return;
-    }
+    const tgUserId = Number(access.platformUserId);
+    const groupIds =
+      (access.metadata as any)?.telegramGroupIds ?? [];
 
-    if (!subscription.currentPeriodEnd) return;
-
-    // 24h grace period
-    const revokeAfter =
-      new Date(subscription.currentPeriodEnd).getTime() +
-      24 * 60 * 60 * 1000;
-
-    if (Date.now() < revokeAfter) return;
-
-    const accesses = await prisma.accessControl.findMany({
-  where: {
-    subscriptionId,
-    platform: "telegram",
-    status: "granted",
-  },
-});
-
-for (const access of accesses) {
-  if (!access.platformUserId) continue;
-
-  // revoke per group
-  const tgUserId = Number(access.platformUserId);
-    const groups = subscription.product.telegramGroups.filter(
-  (g) => g.isConnected
-);
-
-
-    for (const group of groups) {
-      try {
-        await kickFromGroup(group.tgGroupId, tgUserId);
-
-        await prisma.telegramActivityLog.create({
-          data: {
-            creatorId: subscription.product.creatorId,
-            groupId: group.id,
-            tgUserId: BigInt(tgUserId),
-            event: "subscription_expired",
-          },
-        });
-      } catch (err) {
-        console.error("Kick failed:", err);
-      }
+    for (const tgGroupId of groupIds) {
+      await kickFromGroup(BigInt(tgGroupId), tgUserId);
     }
 
     await prisma.accessControl.update({
@@ -188,10 +150,7 @@ for (const access of accesses) {
         revokedAt: new Date(),
       },
     });
-}
-    console.log("🔻 Access revoked:", subscriptionId);
-  },
-  { connection, concurrency: 2 }
-);
+  }
+});
 
 console.log("🚀 Worker running");

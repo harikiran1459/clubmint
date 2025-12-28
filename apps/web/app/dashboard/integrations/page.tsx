@@ -132,9 +132,7 @@ export default function IntegrationsPage() {
         </div>
 
         <p className="text-sm text-gray-500 mb-5">
-          Automatically control access to paid Telegram groups. ClubMint will
-          silently add and remove subscribers based on their active
-          subscription.
+          Automatically grants and revokes access to paid Telegram groups. Subscribers receive secure invite links, and access is enforced in real time.
         </p>
 
         {/* INSTRUCTIONS */}
@@ -162,7 +160,7 @@ export default function IntegrationsPage() {
         {/* ACTIONS */}
         <div className="flex flex-wrap gap-3">
           <a
-            href={`https://t.me/${process.env.TELEGRAM_BOT_USERNAME}?startgroup=true`}
+            href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}?startgroup=true`}
             target="_blank"
           >
             <button className="auth-btn">Invite Bot to Telegram Group</button>

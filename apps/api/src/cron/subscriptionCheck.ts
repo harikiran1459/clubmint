@@ -1,4 +1,4 @@
-// src/cron/subscriptionCheck.ts
+// apps/api/src/cron/subscriptionCheck.ts
 
 import cron from "node-cron";
 import { PrismaClient } from "@prisma/client";

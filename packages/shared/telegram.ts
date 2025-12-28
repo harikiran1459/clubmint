@@ -6,23 +6,12 @@ import fetch from "node-fetch";
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   throw new Error("Missing TELEGRAM_BOT_TOKEN");
 }
-
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-/**
- * Shared Telegram bot instance
- * - NO polling
- * - Used only by workers / helpers
- */
 export const telegramBot = new TelegramBot(BOT_TOKEN, {
   polling: false,
 });
-
-/* ============================================================
-   INVITE LINKS (AUTO-JOIN FLOW)
-============================================================ */
-
 /**
  * Create a single-use invite link for a Telegram group.
  * Used when granting access to a subscriber.
@@ -55,11 +44,6 @@ export async function createInviteLink(
     throw err;
   }
 }
-
-/* ============================================================
-   MESSAGING
-============================================================ */
-
 /**
  * Send a Telegram DM.
  * NOTE:
@@ -71,7 +55,7 @@ export async function sendTelegramMessage(
   text: string
 ) {
   try {
-    await fetch(`${API}/sendMessage`, {
+    const res = await fetch(`${API}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -81,14 +65,19 @@ export async function sendTelegramMessage(
         disable_web_page_preview: true,
       }),
     });
+
+    const json = (await res.json()) as any;
+    if (!json.ok) {
+      console.warn(
+        "⚠️ sendMessage failed:",
+        tgUserId,
+        json.description
+      );
+    }
   } catch (err) {
     console.error("❌ sendTelegramMessage error:", err);
   }
 }
-
-/* ============================================================
-   KICK / REVOKE ACCESS
-============================================================ */
 
 /**
  * Remove a user from a group.
@@ -104,8 +93,7 @@ export async function kickFromGroup(
   tgUserId: number
 ) {
   try {
-    // 1️⃣ Ban (kick)
-    const banRes = await fetch(`${API}/banChatMember`, {
+    const res = await fetch(`${API}/banChatMember`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -114,37 +102,41 @@ export async function kickFromGroup(
       }),
     });
 
-    const banJson = (await banRes.json()) as any;
-    if (!banJson.ok) {
-      throw new Error(
-        `banChatMember failed: ${JSON.stringify(banJson)}`
-      );
+    const json = (await res.json()) as any;
+
+    if (!json.ok) {
+      // Expected & safe failures
+      if (
+        json.error_code === 400 || // user not found / already left
+        json.error_code === 403    // insufficient rights / admin user
+      ) {
+        console.warn(
+          "⚠️ kick skipped:",
+          tgGroupId,
+          tgUserId,
+          json.description
+        );
+        return;
+      }
+
+      console.error("❌ banChatMember failed:", json);
+      return;
     }
-    if (banJson.error_code === 403) {
-  console.error(
-    "❌ Bot lacks ban permission in group",
-    tgGroupId
-  );
-}
 
-
-    // 2️⃣ Immediately unban (so they can rejoin later)
+    // Unban to allow rejoin later
     await fetch(`${API}/unbanChatMember`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: Number(tgGroupId),
         user_id: tgUserId,
-        until_date: Math.floor(Date.now() / 1000) + 30, // 30 seconds
       }),
     });
-
   } catch (err) {
     console.error(
-      `❌ kickFromGroup error (group=${tgGroupId}, user=${tgUserId}):`,
+      `❌ kickFromGroup error (group=${tgGroupId}, user=${tgUserId})`,
       err
     );
-    throw err;
   }
 }
 

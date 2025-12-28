@@ -1,13 +1,13 @@
 # 📁 clubmint - Project Structure
 
-*Generated on: 12/26/2025, 11:26:40 PM*
+*Generated on: 12/28/2025, 7:39:49 PM*
 
 ## 📋 Quick Overview
 
 | Metric | Value |
 |--------|-------|
-| 📄 Total Files | 237 |
-| 📁 Total Folders | 100 |
+| 📄 Total Files | 267 |
+| 📁 Total Folders | 105 |
 | 🌳 Max Depth | 7 levels |
 | 🛠️ Tech Stack | React, TypeScript, CSS, Tailwind CSS, Node.js |
 
@@ -34,15 +34,15 @@
 
 ### By File Type
 
-- ⚛️ **.tsx** (React TypeScript files): 72 files (30.4%)
-- 🔷 **.ts** (TypeScript files): 49 files (20.7%)
-- 🖼️ **.png** (PNG images): 46 files (19.4%)
-- 📄 **.sql** (Other files): 33 files (13.9%)
-- ⚙️ **.json** (JSON files): 13 files (5.5%)
-- 🖼️ **.jpeg** (JPEG images): 9 files (3.8%)
-- 🎨 **.svg** (SVG images): 4 files (1.7%)
-- 🖼️ **.jpg** (JPEG images): 2 files (0.8%)
-- 📜 **.js** (JavaScript files): 2 files (0.8%)
+- ⚛️ **.tsx** (React TypeScript files): 79 files (29.6%)
+- 🖼️ **.png** (PNG images): 59 files (22.1%)
+- 🔷 **.ts** (TypeScript files): 55 files (20.6%)
+- 📄 **.sql** (Other files): 37 files (13.9%)
+- ⚙️ **.json** (JSON files): 13 files (4.9%)
+- 🖼️ **.jpeg** (JPEG images): 9 files (3.4%)
+- 🎨 **.svg** (SVG images): 4 files (1.5%)
+- 🖼️ **.jpg** (JPEG images): 2 files (0.7%)
+- 📜 **.js** (JavaScript files): 2 files (0.7%)
 - 🚫 **.gitignore** (Git ignore): 1 files (0.4%)
 - ⚙️ **.toml** (TOML files): 1 files (0.4%)
 - 📄 **.prisma** (Other files): 1 files (0.4%)
@@ -53,22 +53,22 @@
 
 ### By Category
 
-- **React**: 72 files (30.4%)
-- **Assets**: 62 files (26.2%)
-- **TypeScript**: 49 files (20.7%)
-- **Other**: 35 files (14.8%)
-- **Config**: 15 files (6.3%)
-- **JavaScript**: 2 files (0.8%)
+- **React**: 79 files (29.6%)
+- **Assets**: 75 files (28.1%)
+- **TypeScript**: 55 files (20.6%)
+- **Other**: 39 files (14.6%)
+- **Config**: 15 files (5.6%)
+- **JavaScript**: 2 files (0.7%)
 - **DevOps**: 1 files (0.4%)
 - **Styles**: 1 files (0.4%)
 
 ### 📁 Largest Directories
 
-- **root**: 237 files
-- **apps**: 224 files
-- **apps\api**: 133 files
-- **apps\web**: 91 files
-- **apps\web\app**: 67 files
+- **root**: 267 files
+- **apps**: 254 files
+- **apps\api**: 156 files
+- **apps\web**: 98 files
+- **apps\web\app**: 74 files
 
 ## 🌳 Directory Structure
 
@@ -147,6 +147,14 @@ clubmint/
 │   │   │   │   │   └── 📄 migration.sql
 │   │   │   │   ├── 📂 20251225205318_add_is_system_to_creator_3/
 │   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251226180713_add_analytics_core/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251227171421_creatorearnings/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251228063725_telegramgroup/
+│   │   │   │   │   └── 📄 migration.sql
+│   │   │   │   ├── 📂 20251228084535_user_tokenversion_change/
+│   │   │   │   │   └── 📄 migration.sql
 │   │   │   │   └── ⚙️ migration_lock.toml
 │   │   │   └── 📄 schema.prisma
 │   │   ├── 🔷 prisma.config.ts
@@ -155,10 +163,13 @@ clubmint/
 │   │   ├── 📁 src/
 │   │   │   ├── 📂 admin/
 │   │   │   │   └── 🔷 payouts.ts
+│   │   │   ├── 📂 analytics/
+│   │   │   │   └── 🔷 events.ts
 │   │   │   ├── ⚙️ config/
 │   │   │   │   ├── 🔷 planLimits.ts
 │   │   │   │   └── 🔷 plans.ts
 │   │   │   ├── 📂 cron/
+│   │   │   │   ├── 🔷 analyticsDaily.ts
 │   │   │   │   └── 🔷 subscriptionCheck.ts
 │   │   │   ├── 🔷 index.ts
 │   │   │   ├── 📂 integrations/
@@ -166,11 +177,14 @@ clubmint/
 │   │   │   │   └── 🔷 telegramChatMember.ts
 │   │   │   ├── 📚 lib/
 │   │   │   │   ├── 🔷 creator.ts
+│   │   │   │   ├── 🔷 r2.ts
 │   │   │   │   └── 🔷 razorpay.ts
 │   │   │   ├── 📂 middleware/
 │   │   │   │   ├── 🔷 auth.ts
 │   │   │   │   └── 🔷 rateLimit.ts
 │   │   │   ├── 📂 routes/
+│   │   │   │   ├── 🔷 access.ts
+│   │   │   │   ├── 🔷 analytics.ts
 │   │   │   │   ├── 🔷 auth.ts
 │   │   │   │   ├── 🔷 billing.ts
 │   │   │   │   ├── 🔷 checkout.ts
@@ -200,7 +214,8 @@ clubmint/
 │   │   │   │   ├── 🔷 auth.ts
 │   │   │   │   ├── 🔷 createAlert.ts
 │   │   │   │   ├── 🔷 logActivity.ts
-│   │   │   │   └── 🔷 minio.ts
+│   │   │   │   ├── 🔷 minio.ts
+│   │   │   │   └── 🔷 trackEvent.ts
 │   │   ├── 🟡 🔷 **tsconfig.json**
 │   │   └── 📂 uploads/
 │   │   │   ├── 🖼️ 1765350790843-yx4o0bn9id.jpeg
@@ -257,7 +272,20 @@ clubmint/
 │   │   │   ├── 🖼️ 1766220247439-Screenshot_(71).png
 │   │   │   ├── 🖼️ 1766220461783-Screenshot_(13).png
 │   │   │   ├── 🖼️ 1766223744597-Screenshot_(239).png
-│   │   │   └── 🖼️ 1766225205304-7650228.png
+│   │   │   ├── 🖼️ 1766225205304-7650228.png
+│   │   │   ├── 🖼️ 1766835777752-Screenshot_(12).png
+│   │   │   ├── 🖼️ 1766835839301-7650228.png
+│   │   │   ├── 🖼️ 1766840411458-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766840674125-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766841358939-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766841363946-Screenshot_(12).png
+│   │   │   ├── 🖼️ 1766841729593-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766841741849-Screenshot_(71).png
+│   │   │   ├── 🖼️ 1766841883131-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766842002532-Screenshot_(11).png
+│   │   │   ├── 🖼️ 1766842022593-Screenshot_(12).png
+│   │   │   ├── 🖼️ 1766842082218-Screenshot_(70).png
+│   │   │   └── 🖼️ 1766842159734-Screenshot_(11).png
 │   └── 📂 web/
 │   │   ├── 🚀 app/
 │   │   │   ├── 📂 [handle]/
@@ -270,9 +298,15 @@ clubmint/
 │   │   │   │   └── ⚛️ page.tsx
 │   │   │   ├── 🧩 components/
 │   │   │   │   ├── 📂 dashboard/
+│   │   │   │   │   ├── ⚛️ FunnelChart.tsx
 │   │   │   │   │   ├── ⚛️ MetricCard.tsx
+│   │   │   │   │   ├── ⚛️ PageFunnelChart.tsx
+│   │   │   │   │   ├── ⚛️ PageProductTable.tsx
+│   │   │   │   │   ├── ⚛️ PageSelector.tsx
 │   │   │   │   │   ├── ⚛️ RevenueChart.tsx
+│   │   │   │   │   ├── ⚛️ SectionHeader.tsx
 │   │   │   │   │   ├── ⚛️ Sidebar.tsx
+│   │   │   │   │   ├── ⚛️ SkeletonCard.tsx
 │   │   │   │   │   └── ⚛️ Topbar.tsx
 │   │   │   │   ├── 📂 landing/
 │   │   │   │   │   ├── ⚛️ Brands.tsx
@@ -361,7 +395,8 @@ clubmint/
 │   │   │   ├── 📂 signup/
 │   │   │   │   └── ⚛️ page.tsx
 │   │   │   └── 📂 success/
-│   │   │   │   └── ⚛️ page.tsx
+│   │   │   │   ├── ⚛️ page.tsx
+│   │   │   │   └── ⚛️ success-client.tsx
 │   │   ├── 🧩 components/
 │   │   │   ├── ⚛️ ImageUploader.tsx
 │   │   │   └── 📂 sections/
