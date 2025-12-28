@@ -178,7 +178,14 @@ router.post("/onboard", requireAuth, async (req, res) => {
         handle,
         bio: bio ?? "",
         plan: "free",
-        commissionPct: 10, // default
+        commissionPct: 15, // default
+      },
+    });
+    // AFTER creator is created successfully
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: {
+        tokenVersion: { increment: 1 },
       },
     });
 

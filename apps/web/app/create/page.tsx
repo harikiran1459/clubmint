@@ -72,6 +72,7 @@ export default function BecomeCreatorPage() {
        * This ensures creatorId / handle is available everywhere
        */
       await update();
+      await fetch("/api/auth/session");
 
       /**
        * 🔑 Hard refresh dashboard route

@@ -7,10 +7,11 @@ import jwt from "jsonwebtoken";
 const prisma = new PrismaClient();
 const router = Router();
 
-const JWT_SECRET = process.env.API_JWT_SECRET || process.env.NEXTAUTH_SECRET;
+const JWT_SECRET = process.env.NEXTAUTH_SECRET!;
 if (!JWT_SECRET) {
-  console.warn("API_JWT_SECRET / NEXTAUTH_SECRET not set — auth will fail without a secret.");
+  throw new Error("API_JWT_SECRET is required");
 }
+
 
 // SIGNUP -----------------------------------------------------------
 router.post("/signup", async (req, res) => {
@@ -77,11 +78,12 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign(
       {
         userId: user.id,
+        tokenVersion: user.tokenVersion,
         creatorId: user.creator?.id ?? null,
         creatorHandle: user.creator?.handle ?? null,   // <-- NEW
         email: user.email
       },
-      process.env.JWT_SECRET!,
+      JWT_SECRET!,
       { expiresIn: "7d" }
     );
 
@@ -109,7 +111,7 @@ router.get("/me", async (req, res) => {
     const auth = req.headers.authorization?.split(" ")[1];
     if (!auth) return res.status(401).json({ error: "No token" });
 
-    const decoded: any = jwt.verify(auth, process.env.JWT_SECRET!);
+    const decoded: any = jwt.verify(auth,JWT_SECRET!);
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
@@ -139,11 +141,13 @@ router.get("/session", async (req, res) => {
 
     const token = matches[1];
     const payload: any = jwt.verify(token, JWT_SECRET!);
-    const userId = payload.sub;
+    const userId = payload.userId;
     if (!userId) return res.status(401).json({ ok: false, error: "Invalid token" });
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return res.status(401).json({ ok: false, error: "User not found" });
+    if (!user || user.tokenVersion !== payload.tokenVersion) {
+  return res.status(401).json({ error: "Token expired" });
+}
 
     return res.json({ ok: true, user });
   } catch (err: any) {

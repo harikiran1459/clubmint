@@ -20,6 +20,7 @@ router.post("/profile", requireAuth, async (req, res) => {
       data: {
         ...(name !== undefined && { name }),
         ...(profileImage !== undefined && { image: profileImage }),
+        tokenVersion: { increment: 1 },
       },
     });
 

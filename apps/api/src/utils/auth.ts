@@ -7,7 +7,7 @@ export function authMiddleware(req, res, next) {
 
   try {
     const token = header.split(" ")[1];
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+    const payload = jwt.verify(token, process.env.NEXTAUTH_SECRET!) as { userId: string };
     req.userId = payload.userId;
     next();
   } catch (err) {

@@ -35,7 +35,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+    const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET!);
     console.log("✅ Token decoded:", decoded);
     req.userId = (decoded as any).sub || (decoded as any).userId;
     req.creatorId = (decoded as any).creatorId;
@@ -63,7 +63,7 @@ export function auth(req: Request, res: Response, next: NextFunction) {
   // console.log("[AUTH] Extracted token:", token);
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET!) as any;
     // console.log("[AUTH] Decoded token:", decoded);
     req.user = {
       userId: decoded.sub,  // NextAuth stores userId in "sub"
