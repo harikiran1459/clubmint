@@ -120,6 +120,13 @@ export async function kickFromGroup(
         `banChatMember failed: ${JSON.stringify(banJson)}`
       );
     }
+    if (banJson.error_code === 403) {
+  console.error(
+    "❌ Bot lacks ban permission in group",
+    tgGroupId
+  );
+}
+
 
     // 2️⃣ Immediately unban (so they can rejoin later)
     await fetch(`${API}/unbanChatMember`, {
@@ -128,6 +135,7 @@ export async function kickFromGroup(
       body: JSON.stringify({
         chat_id: Number(tgGroupId),
         user_id: tgUserId,
+        until_date: Math.floor(Date.now() / 1000) + 30, // 30 seconds
       }),
     });
 

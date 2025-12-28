@@ -20,10 +20,6 @@ const connection = process.env.REDIS_URL
   : undefined;
 
 // Enables retries + delayed jobs
-if (connection) {
-  new QueueScheduler("grant-access", { connection });
-  new QueueScheduler("revoke-access", { connection });
-}
 
 /* =======================================================
    GRANT ACCESS WORKER (NO AUTO-ADD)
@@ -62,19 +58,18 @@ new Worker(
     }
 
     // 2️⃣ Find Telegram access record
-    const access = await prisma.accessControl.findFirst({
-      where: {
-        subscriptionId,
-        platform: "telegram",
-      },
-    });
+    const accesses = await prisma.accessControl.findMany({
+  where: {
+    subscriptionId,
+    platform: "telegram",
+  },
+});
 
-    if (!access?.platformUserId) {
-      console.log("⚠️ No Telegram user linked");
-      return;
-    }
+for (const access of accesses) {
+  if (!access.platformUserId) continue;
 
-    const tgUserId = Number(access.platformUserId);
+  // grant per group
+  const tgUserId = Number(access.platformUserId);
 
     // 3️⃣ Generate invite links + DM user
     const inviteLinks: string[] = [];
@@ -106,11 +101,13 @@ new Worker(
         status: "granted",
         grantedAt: new Date(),
         metadata: {
-          telegramGroupIds: groups.map((g) => g.tgGroupId.toString()),
-        },
+  ...(access.metadata as Record<string, unknown> ?? {}),
+  telegramGroupIds: groups.map((g) => g.tgGroupId.toString()),
+},
+
       },
     });
-
+}
     console.log("✅ Access granted:", subscriptionId);
   },
   { connection, concurrency: 2 }
@@ -149,18 +146,23 @@ new Worker(
 
     if (Date.now() < revokeAfter) return;
 
-    const access = await prisma.accessControl.findFirst({
-      where: {
-        subscriptionId,
-        platform: "telegram",
-        status: "granted",
-      },
-    });
+    const accesses = await prisma.accessControl.findMany({
+  where: {
+    subscriptionId,
+    platform: "telegram",
+    status: "granted",
+  },
+});
 
-    if (!access?.platformUserId) return;
+for (const access of accesses) {
+  if (!access.platformUserId) continue;
 
-    const tgUserId = Number(access.platformUserId);
-    const groups = subscription.product.telegramGroups;
+  // revoke per group
+  const tgUserId = Number(access.platformUserId);
+    const groups = subscription.product.telegramGroups.filter(
+  (g) => g.isConnected
+);
+
 
     for (const group of groups) {
       try {
@@ -186,7 +188,7 @@ new Worker(
         revokedAt: new Date(),
       },
     });
-
+}
     console.log("🔻 Access revoked:", subscriptionId);
   },
   { connection, concurrency: 2 }

@@ -651,7 +651,7 @@ export default function PageRenderer({
 
                   <div className="mt-4 flex items-end gap-1">
                     <span className="text-4xl font-extrabold">
-                      ${(product.priceCents / 100).toFixed(2)}
+                      ₹{(product.priceCents / 100).toFixed(2)}
                     </span>
                     <span className="text-sm text-neutral-500 mb-1">
                       /{product.billingInterval ?? "month"}

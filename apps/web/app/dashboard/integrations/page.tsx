@@ -143,7 +143,7 @@ export default function IntegrationsPage() {
             step="1"
             icon={<Plus />}
             title="Invite the bot"
-            desc="Add the official ClubMint bot to your Telegram group as an admin."
+            desc="Add the official ClubMint bot (@clubmint_access_bot) to your Telegram group as an admin with default permissions."
           />
           <Instruction
             step="2"
@@ -155,7 +155,7 @@ export default function IntegrationsPage() {
             step="3"
             icon={<Layers />}
             title="Group appears here"
-            desc="The group will instantly show up below once verified."
+            desc="The group will instantly show up below once verified. If not, try refreshing."
           />
         </div>
 

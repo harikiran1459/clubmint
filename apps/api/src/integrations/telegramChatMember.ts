@@ -193,24 +193,9 @@ import fetch from "node-fetch";
 
 const prisma = new PrismaClient();
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-if (!BOT_TOKEN) throw new Error("Missing TELEGRAM_BOT_TOKEN");
-
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-/**
- * Telegram chat_member webhook
- *
- * ENFORCEMENT (new joins only):
- * - Silent
- * - No DMs
- * - No verification
- * - No retroactive kicks
- *
- * RULE:
- *   User may stay ONLY if they have a VALID (active/grace)
- *   subscription mapped to this group.
- */
 export async function handleChatMemberUpdate(update: any) {
   try {
     const chatMember = update.chat_member;
@@ -219,29 +204,21 @@ export async function handleChatMemberUpdate(update: any) {
     const { chat, new_chat_member, old_chat_member } = chatMember;
     if (!chat || !new_chat_member?.user) return;
 
-    // Ignore bots (including ourselves)
+    // Ignore bots
     if (new_chat_member.user.is_bot) return;
 
-    /**
-     * ✅ Detect REAL joins only
-     * Covers:
-     * - Invite link join
-     * - Admin-added user
-     * - Approved join request
-     */
+    // Detect joins reliably
     const joined =
-      (old_chat_member?.status === "left" ||
-        old_chat_member?.status === "kicked") &&
-      new_chat_member.status === "member";
+      ["left", "kicked", "restricted"].includes(
+        old_chat_member?.status
+      ) && new_chat_member.status === "member";
 
     if (!joined) return;
 
     const tgGroupId = BigInt(chat.id);
     const tgUserId = BigInt(new_chat_member.user.id);
 
-    // --------------------------------------------------
-    // 1️⃣ Find managed Telegram group
-    // --------------------------------------------------
+    // 1️⃣ Managed group?
     const group = await prisma.telegramGroup.findUnique({
       where: { tgGroupId },
       include: {
@@ -249,35 +226,21 @@ export async function handleChatMemberUpdate(update: any) {
       },
     });
 
-    // Not a ClubMint group → ignore
-    if (!group) return;
-
-    // No products mapped → enforcement disabled
-    if (group.products.length === 0) return;
+    if (!group || group.products.length === 0) return;
 
     const productIds = group.products.map((p) => p.id);
 
-    // --------------------------------------------------
-    // 2️⃣ Check VALID subscription (active OR grace)
-    // --------------------------------------------------
-    const validSubscription = await prisma.subscription.findFirst({
+    // 2️⃣ ANY valid subscription for this group?
+    const hasValidSubscription = await prisma.subscription.findFirst({
       where: {
-        status: { in: ["active", "past_due", "unpaid"] },
         productId: { in: productIds },
-        accessControls: {
-          some: {
-            platform: "telegram",
-            platformUserId: tgUserId.toString(),
-            status: "granted",
-          },
-        },
+        status: { in: ["active", "past_due", "unpaid"] },
       },
+      select: { id: true },
     });
 
-    // --------------------------------------------------
     // 3️⃣ Enforce
-    // --------------------------------------------------
-    if (!validSubscription) {
+    if (!hasValidSubscription) {
       await kickUser(chat.id, new_chat_member.user.id);
 
       await prisma.telegramActivityLog.create({
@@ -286,14 +249,14 @@ export async function handleChatMemberUpdate(update: any) {
           groupId: group.id,
           tgUserId,
           event: "kick",
-          reason: "no_valid_subscription",
+          reason: "no_active_subscription",
         },
       });
 
       return;
     }
 
-    // Allowed → silent allow
+    // Allowed
     await prisma.telegramActivityLog.create({
       data: {
         creatorId: group.creatorId,
@@ -307,9 +270,7 @@ export async function handleChatMemberUpdate(update: any) {
   }
 }
 
-/* --------------------------------------------------
-   Helpers
--------------------------------------------------- */
+/* -------------------------------------------------- */
 
 async function kickUser(chatId: number, userId: number) {
   try {
@@ -319,10 +280,12 @@ async function kickUser(chatId: number, userId: number) {
       body: JSON.stringify({
         chat_id: chatId,
         user_id: userId,
+        until_date: Math.floor(Date.now() / 1000) + 60,
       }),
     });
   } catch (err) {
     console.error("Failed to kick user:", err);
   }
 }
+
 

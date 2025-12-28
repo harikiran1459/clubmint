@@ -234,7 +234,7 @@ model TelegramGroup {
   creatorId    String
   creator      Creator               @relation(fields: [creatorId], references: [id])
   tgGroupId    BigInt                @unique // Telegram's chat.id
-  inviteLink   String
+  inviteLink   String?
   title        String?
   username     String?
   type         String? // "supergroup" | "channel"

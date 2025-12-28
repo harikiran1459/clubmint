@@ -1,55 +1,95 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 export default function BecomeCreatorPage() {
-  const { data: session, update, status } = useSession();
   const router = useRouter();
+  const { data: session, status, update } = useSession();
+
   const [handle, setHandle] = useState("");
   const [bio, setBio] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // const token = session?.user?.accessToken;
-  // const canSubmit = status === "authenticated" && Boolean(token);
 
-  if (status === "loading") {
-    return <div>Checking authentication…</div>;
-  }
+  /* --------------------------------------------------
+     AUTH GUARD (CRITICAL)
+  -------------------------------------------------- */
+  useEffect(() => {
+    if (status === "loading") return;
 
-  if (status === "unauthenticated") {
-    router.push("/login");
-    return null;
-  }
+    if (!session) {
+      router.replace("/login");
+    }
+  }, [status, session, router]);
 
-  async function submit() {
-    const token = session?.user.accessToken;
-
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/creators/onboard`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ handle }),
-      }
+  if (status === "loading" || !session) {
+    return (
+      <div className="flex h-screen items-center justify-center text-white/60">
+        Checking authentication…
+      </div>
     );
+  }
 
-    const json = await res.json();
-
-    if (!json.ok) {
-      alert(json.error);
+  /* --------------------------------------------------
+     SUBMIT
+  -------------------------------------------------- */
+  async function submit() {
+    if (!handle.trim()) {
+      setError("Handle is required");
       return;
     }
 
-    await update();           // 🔑 critical
-    router.push("/dashboard");
-    router.refresh();
+    setLoading(true);
+    setError("");
+
+    try {
+      const token = (session?.user as any).accessToken;
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/creators/onboard`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ handle, bio }),
+        }
+      );
+
+      const json = await res.json();
+
+      if (!json.ok) {
+        setError(json.error || "Failed to create creator");
+        setLoading(false);
+        return;
+      }
+
+      /**
+       * 🔑 Force session refresh
+       * This ensures creatorId / handle is available everywhere
+       */
+      await update();
+
+      /**
+       * 🔑 Hard refresh dashboard route
+       * Prevents stale session redirecting to /my-access
+       */
+      router.replace("/dashboard");
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      setError("Something went wrong");
+    } finally {
+      setLoading(false);
+    }
   }
 
+  /* --------------------------------------------------
+     UI
+  -------------------------------------------------- */
   return (
     <main className="min-h-screen flex items-center justify-center px-6">
       <div className="absolute inset-0 grid-bg" />
@@ -65,8 +105,8 @@ export default function BecomeCreatorPage() {
           Start selling access to your Telegram, Discord or WhatsApp community.
         </p>
 
-        <div className="mt-10 space-y-4">
-          <div className="mb-5 mt-5 space-y-2">
+        <div className="mt-10 space-y-6">
+          <div>
             <label className="text-sm text-white/80">
               Your creator handle
             </label>
@@ -81,7 +121,7 @@ export default function BecomeCreatorPage() {
             </p>
           </div>
 
-          <div className="mt-5 mb-5 space-y-2">
+          <div>
             <label className="text-sm text-white/80">
               Short bio (optional)
             </label>
@@ -101,9 +141,11 @@ export default function BecomeCreatorPage() {
           <button
             onClick={submit}
             disabled={loading}
-            className="mt-6 w-full rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 py-3 font-semibold disabled:opacity-60"
+            className="w-full rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 py-3 font-semibold disabled:opacity-60"
           >
-            {loading ? "Creating creator account…" : "Create creator account"}
+            {loading
+              ? "Creating creator account…"
+              : "Create creator account"}
           </button>
         </div>
 

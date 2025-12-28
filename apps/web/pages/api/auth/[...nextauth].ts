@@ -88,7 +88,7 @@ export default NextAuth({
   callbacks: {
     // Attach user info into JWT
     async jwt({ token, user }) {
-      console.log("JWT CALLBACK USER:", user);
+      // console.log("JWT CALLBACK USER:", user);
       if (user) {
         token.userId = (user as any).userId || user.id;
         token.accessToken = (user as any).accessToken;
@@ -105,7 +105,7 @@ export default NextAuth({
 
     // Expose JWT fields into session object
     async session({ session, token }) {
-      console.log("SESSION CALLBACK TOKEN:", token);
+      // console.log("SESSION CALLBACK TOKEN:", token);
       if (session.user) {
         session.user.image = token.image as string;
         session.user.userId = token.userId;

@@ -40,7 +40,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-console.log("JWT_SECRET =", process.env.JWT_SECRET);
+// console.log("JWT_SECRET =", process.env.JWT_SECRET);
 const allowedOrigins = [
   "http://localhost:3000",
   "https://theclubmint.com",

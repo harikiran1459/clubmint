@@ -260,37 +260,17 @@ const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
  */
 export async function handleTelegramUpdate(update: any) {
   try {
-    console.log("📨 TELEGRAM UPDATE RECEIVED");
-    console.log(
-  "📨 UPDATE KEYS:",
-  Object.keys(update)
-);
-    const msg = update.message ||
-      update.channel_post;
-    if (!msg) {
-      console.log("❌ No message/channel_post found");
-      return};
+    const msg = update.message || update.channel_post;
+    if (!msg || typeof msg.text !== "string") return;
 
-      if (typeof msg.text !== "string") {
-        console.log("❌ Message has no text");
-        return;
-      }
+    if (msg.chat.type === "private") return;
 
-    // Ignore private chats
-    if (msg.chat.type === "private") {
-      console.log("❌ chat type is private, ignoring");
-      return};
+    const text = msg.text.trim().toUpperCase();
+    if (!text.startsWith("CLUBMINT-")) return;
 
-    const text = msg.text.trim();
-    if (!text.startsWith("CLUBMINT")) return;
+    const tgGroupId = BigInt(msg.chat.id);
 
-    const chat = msg.chat;
-    const tgGroupId = BigInt(chat.id);
-
-    // ----------------------------------------
-    // 1️⃣ Fetch valid unused claim
-    // ----------------------------------------
-
+    // 1️⃣ Fetch claim
     const claim = await prisma.telegramGroupClaim.findFirst({
       where: {
         code: text,
@@ -298,100 +278,132 @@ export async function handleTelegramUpdate(update: any) {
         expiresAt: { gt: new Date() },
       },
     });
-    console.log("📌 CLAIMS IN DB:", await prisma.telegramGroupClaim.findMany({
-  select: { code: true, used: true, expiresAt: true }
-}));
 
-    if (!claim) return; // silently ignore invalid code
-    console.log("📌 CLAIM MATCH RESULT:", claim);
-    // Fetch creator & current groups
-const creator = await prisma.creator.findUnique({
-  where: { id: claim.creatorId },
-  include: { telegramGroups: true },
+    if (!claim) return;
+
+    // 2️⃣ Ensure group is NOT already connected
+    const existingGroup = await prisma.telegramGroup.findUnique({
+      where: { tgGroupId },
+    });
+
+    if (existingGroup?.isConnected) {
+      await fetch(`${API}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: msg.chat.id,
+          text: "⚠️ This Telegram group is already connected to a ClubMint account.",
+        }),
+      });
+      return;
+    }
+
+    // 3️⃣ Verify bot is admin
+    const adminCheck = await fetch(`${API}/getChatMember`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: msg.chat.id,
+        user_id: Number(process.env.TELEGRAM_BOT_USER_ID),
+      }),
+    }).then((r) => r.json());
+
+    if (
+      !adminCheck.ok ||
+      !["administrator", "creator"].includes(
+        adminCheck.result?.status
+      )
+    ) {
+      await fetch(`${API}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: msg.chat.id,
+          text:
+            "❌ ClubMint bot must be an admin to connect this group.",
+        }),
+      });
+      return;
+    }
+
+    // 4️⃣ Load creator & plan
+    const creator = await prisma.creator.findUnique({
+      where: { id: claim.creatorId },
+      include: { telegramGroups: true },
+    });
+
+    if (!creator) return;
+
+    const plan = CLUBMINT_PLANS[creator.plan];
+    const maxGroups = plan.features.telegramGroups;
+
+    const connectedGroups = creator.telegramGroups.filter(
+      (g) => g.isConnected
+    );
+
+    if (
+      Number.isFinite(maxGroups) &&
+      connectedGroups.length >= maxGroups
+    ) {
+      await fetch(`${API}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: msg.chat.id,
+          text:
+            "❌ Telegram group limit reached for your plan.\nUpgrade to add more groups.",
+        }),
+      });
+      return;
+    }
+
+    // 5️⃣ Attach group
+    await prisma.telegramGroup.upsert({
+  where: { tgGroupId },
+
+  create: {
+    tgGroupId,
+    creator: {
+      connect: { id: creator.id },
+    },
+    title: msg.chat.title ?? null,
+    username: msg.chat.username ?? null,
+    type: msg.chat.type ?? null,
+    isConnected: true,
+    claimCode: text,
+  },
+
+  update: {
+    creator: {
+      connect: { id: creator.id },
+    },
+    title: msg.chat.title ?? null,
+    username: msg.chat.username ?? null,
+    type: msg.chat.type ?? null,
+    isConnected: true,
+  },
 });
 
-if (!creator) return;
 
-const plan = CLUBMINT_PLANS[creator.plan];
-const maxGroups = plan.features.telegramGroups;
-
-// Count connected groups only
-const connectedGroups = creator.telegramGroups.filter(
-  (g) => g.isConnected
-);
-
-// 🚫 Block if plan limit exceeded
-if (
-  Number.isFinite(maxGroups) &&
-  connectedGroups.length >= maxGroups
-) {
-  console.log("🚫 Telegram group limit reached");
-
-  // Optional UX feedback (safe, one-time)
-  await fetch(`${API}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chat.id,
-      text:
-        "❌ Telegram group limit reached for your current plan.\n" +
-        "Upgrade your plan to add more groups.",
-    }),
-  });
-
-  return; // ❗️DO NOT consume claim
-}
-
-    // ----------------------------------------
-    // 3️⃣ Consume claim FIRST (critical)
-    // ----------------------------------------
+    // 6️⃣ Consume claim LAST
     await prisma.telegramGroupClaim.update({
       where: { id: claim.id },
       data: { used: true },
     });
 
-    // ----------------------------------------
-    // 2️⃣ Attach / create group
-    // ----------------------------------------
-    await prisma.telegramGroup.upsert({
-      where: { tgGroupId },
-      create: {
-        tgGroupId,
-        creatorId: claim.creatorId,
-        inviteLink: "",
-        title: chat.title ?? null,
-        username: chat.username ?? null,
-        type: chat.type ?? null,
-        isConnected: true,
-        claimCode: text,
-      },
-      update: {
-        creatorId: claim.creatorId,
-        title: chat.title ?? null,
-        username: chat.username ?? null,
-        type: chat.type ?? null,
-        isConnected: true,
-      },
-    });
-     
-
-    // ----------------------------------------
-    // 4️⃣ Confirmation message (important UX)
-    // ----------------------------------------
+    // 7️⃣ Confirm
     await fetch(`${API}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: chat.id,
-        text: "✅ ClubMint connected successfully.\nYou may now return to your dashboard.",
+        chat_id: msg.chat.id,
+        text:
+          "✅ ClubMint connected successfully.\nYou may now return to your dashboard.",
       }),
     });
-
-    console.log(
-      `✅ Group ${tgGroupId.toString()} claimed by creator ${claim.creatorId}`
-    );
   } catch (err) {
     console.error("Telegram webhook error:", err);
   }
 }
+
 

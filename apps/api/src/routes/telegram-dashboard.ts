@@ -251,14 +251,17 @@ router.get("/status", requireAuth, async (req, res) => {
       where: { creatorId: creator.id },
     });
 
-    return res.json({
-      ok: true,
-      connected: true,
-      groups: groups.map(g => ({
-        ...g,
-        tgGroupId: g.tgGroupId.toString(),
-      })),
-    });
+    const connectedGroups = groups.filter(g => g.isConnected);
+
+return res.json({
+  ok: true,
+  connected: connectedGroups.length > 0,
+  groups: connectedGroups.map(g => ({
+    ...g,
+    tgGroupId: g.tgGroupId.toString(),
+  })),
+});
+
   } catch (err) {
     console.error("Telegram status error:", err);
     res.status(500).json({ ok: false });
@@ -298,55 +301,55 @@ router.post("/claim-code", requireAuth, async (req, res) => {
 /* ======================================================
    3️⃣ CONNECT GROUP AFTER CODE IS POSTED
 ====================================================== */
-router.post("/claim-group", requireAuth, async (req, res) => {
-  try {
-    const { code } = req.body;
+// router.post("/claim-group", requireAuth, async (req, res) => {
+//   try {
+//     const { code } = req.body;
 
-    if (!code) {
-      return res.status(400).json({ ok: false });
-    }
+//     if (!code) {
+//       return res.status(400).json({ ok: false });
+//     }
 
-    const claim = await prisma.telegramGroupClaim.findFirst({
-      where: {
-        code,
-        used: false,
-        expiresAt: { gt: new Date() },
-      },
-    });
+//     const claim = await prisma.telegramGroupClaim.findFirst({
+//       where: {
+//         code,
+//         used: false,
+//         expiresAt: { gt: new Date() },
+//       },
+//     });
 
-    if (!claim) {
-      return res.status(400).json({ ok: false, error: "Invalid code" });
-    }
+//     if (!claim) {
+//       return res.status(400).json({ ok: false, error: "Invalid code" });
+//     }
 
-    // Find group where this code was posted
-    const group = await prisma.telegramGroup.findFirst({
-      where: { claimCode: code },
-    });
+//     // Find group where this code was posted
+//     const group = await prisma.telegramGroup.findFirst({
+//       where: { claimCode: code },
+//     });
 
-    if (!group) {
-      return res.status(404).json({ ok: false, error: "Group not detected yet" });
-    }
+//     if (!group) {
+//       return res.status(404).json({ ok: false, error: "Group not detected yet" });
+//     }
 
-    await prisma.telegramGroup.update({
-      where: { id: group.id },
-      data: {
-        creatorId: claim.creatorId,
-        isConnected: true,
-        claimCode: null,
-      },
-    });
+//     await prisma.telegramGroup.update({
+//       where: { id: group.id },
+//       data: {
+//         creatorId: claim.creatorId,
+//         isConnected: true,
+//         claimCode: null,
+//       },
+//     });
 
-    await prisma.telegramGroupClaim.update({
-      where: { id: claim.id },
-      data: { used: true },
-    });
+//     await prisma.telegramGroupClaim.update({
+//       where: { id: claim.id },
+//       data: { used: true },
+//     });
 
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error("Claim group error:", err);
-    res.status(500).json({ ok: false });
-  }
-});
+//     return res.json({ ok: true });
+//   } catch (err) {
+//     console.error("Claim group error:", err);
+//     res.status(500).json({ ok: false });
+//   }
+// });
 
 /* ======================================================
    4️⃣ LIST CREATOR GROUPS (UI)
@@ -412,10 +415,18 @@ router.patch("/group/:tgGroupId/disconnect", requireAuth, async (req, res) => {
   try {
     const tgGroupId = BigInt(req.params.tgGroupId);
 
-    await prisma.telegramGroup.update({
-      where: { tgGroupId },
-      data: { isConnected: false },
-    });
+    const creator = await prisma.creator.findUnique({
+  where: { userId: req.userId! },
+});
+
+await prisma.telegramGroup.updateMany({
+  where: {
+    tgGroupId,
+    creatorId: creator.id,
+  },
+  data: { isConnected: false },
+});
+
 
     res.json({ ok: true });
   } catch (err) {
