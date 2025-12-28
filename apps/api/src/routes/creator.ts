@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { auth, requireAuth } from "../middleware/auth";
+import jwt from "jsonwebtoken";
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -134,11 +135,14 @@ router.get("/by-user/:userId", async (req, res) => {
 
 router.post("/onboard", requireAuth, async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.userId!;
     const { handle, bio } = req.body;
 
     if (!handle) {
-      return res.status(400).json({ ok: false, error: "Handle is required" });
+      return res.status(400).json({
+        ok: false,
+        error: "Handle is required",
+      });
     }
 
     // 1️⃣ Ensure user exists
@@ -148,10 +152,13 @@ router.post("/onboard", requireAuth, async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ ok: false, error: "User not found" });
+      return res.status(404).json({
+        ok: false,
+        error: "User not found",
+      });
     }
 
-    // 2️⃣ Prevent double creator creation
+    // 2️⃣ Prevent duplicate creator
     if (user.creator) {
       return res.json({
         ok: true,
@@ -166,9 +173,10 @@ router.post("/onboard", requireAuth, async (req, res) => {
     });
 
     if (existing) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Handle already taken" });
+      return res.status(400).json({
+        ok: false,
+        error: "Handle already taken",
+      });
     }
 
     // 4️⃣ Create creator
@@ -178,25 +186,35 @@ router.post("/onboard", requireAuth, async (req, res) => {
         handle,
         bio: bio ?? "",
         plan: "free",
-        commissionPct: 15, // default
+        commissionPct: 15,
       },
     });
-    // AFTER creator is created successfully
-    await prisma.user.update({
-      where: { id: req.userId },
-      data: {
-        tokenVersion: { increment: 1 },
+
+    // 5️⃣ Re-issue JWT (CRITICAL)
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        creatorId: creator.id,
+        creatorHandle: creator.handle,
       },
-    });
+      process.env.NEXTAUTH_SECRET!,
+      { expiresIn: "7d" }
+    );
 
     return res.json({
       ok: true,
       creator,
+      token, // 🔑 frontend consumes this
     });
   } catch (err) {
     console.error("Creator onboarding error:", err);
-    return res.status(500).json({ ok: false, error: "Onboarding failed" });
+    return res.status(500).json({
+      ok: false,
+      error: "Onboarding failed",
+    });
   }
 });
+
 
 export default router;

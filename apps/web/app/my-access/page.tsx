@@ -11,9 +11,6 @@ type AccessItem = {
   platform: string;
   inviteUrl: string | null;
   status: "active" | "pending" | "revoked";
-  grantedAt?: string;
-  currentPeriodEnd?: string;
-  kickAfter?: string;
 };
 
 export default function MyAccessPage() {
@@ -22,22 +19,17 @@ export default function MyAccessPage() {
 
   const [loading, setLoading] = useState(true);
   const [access, setAccess] = useState<AccessItem[]>([]);
-  const [isCreator, setIsCreator] = useState(false);
 
   /* --------------------------------------------------
-     AUTH GUARD (CRITICAL)
+     AUTH GUARD
   -------------------------------------------------- */
   useEffect(() => {
     if (status === "loading") return;
-
-    if (!session) {
-      router.replace("/login");
-      return;
-    }
+    if (!session) router.replace("/login");
   }, [status, session, router]);
 
   /* --------------------------------------------------
-     LOAD DATA (API = source of truth)
+     LOAD ACCESS (JWT is authority)
   -------------------------------------------------- */
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -47,20 +39,15 @@ export default function MyAccessPage() {
 
     (async () => {
       try {
-        const [accessRes, creatorRes] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/me/access`, {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/me/access`,
+          {
             headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/me/creator-status`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
+          }
+        );
 
-        const accessJson = await accessRes.json();
-        if (accessJson.ok) setAccess(accessJson.access);
-
-        const creatorJson = await creatorRes.json();
-        if (creatorJson.ok) setIsCreator(creatorJson.isCreator);
+        const json = await res.json();
+        if (json.ok) setAccess(json.access);
       } catch (err) {
         console.error("MyAccess load error:", err);
       } finally {
@@ -70,8 +57,10 @@ export default function MyAccessPage() {
   }, [status, session]);
 
   /* --------------------------------------------------
-     LOADING
+     STATE
   -------------------------------------------------- */
+  const isCreator = Boolean((session?.user as any)?.creatorId);
+
   if (loading || status === "loading") {
     return (
       <div className="flex h-screen items-center justify-center text-white/60">
@@ -94,12 +83,12 @@ export default function MyAccessPage() {
           <h1 className="text-4xl font-bold">My Access</h1>
 
           {isCreator && (
-            <a
-              href="/dashboard"
-              className="rounded-lg bg-neutral-800 px-4 py-2 text-sm text-white/80 hover:text-white"
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="text-sm text-white/70 hover:text-white"
             >
               Go to Dashboard
-            </a>
+            </button>
           )}
         </div>
 
@@ -146,6 +135,7 @@ export default function MyAccessPage() {
                       <a
                         href={a.inviteUrl}
                         target="_blank"
+                        rel="noreferrer"
                         className="inline-block rounded-full bg-purple-600 px-6 py-2 text-sm font-semibold hover:bg-purple-700"
                       >
                         Open {a.platform}
@@ -175,12 +165,12 @@ export default function MyAccessPage() {
             <p className="text-sm text-white/60 mb-5">
               Create a page, sell access, and manage subscribers.
             </p>
-            <a
-              href="/create"
+            <button
+              onClick={() => router.push("/create")}
               className="inline-block rounded-full bg-purple-600 px-6 py-3 font-medium hover:bg-purple-700"
             >
               Become a creator
-            </a>
+            </button>
           </div>
         )}
       </div>

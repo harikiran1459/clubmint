@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 
 export default function BecomeCreatorPage() {
   const router = useRouter();
-  const { data: session, status, update } = useSession();
+  const { data: session, status } = useSession();
 
   const [handle, setHandle] = useState("");
   const [bio, setBio] = useState("");
@@ -14,14 +14,11 @@ export default function BecomeCreatorPage() {
   const [error, setError] = useState("");
 
   /* --------------------------------------------------
-     AUTH GUARD (CRITICAL)
+     AUTH GUARD
   -------------------------------------------------- */
   useEffect(() => {
     if (status === "loading") return;
-
-    if (!session) {
-      router.replace("/login");
-    }
+    if (!session) router.replace("/login");
   }, [status, session, router]);
 
   if (status === "loading" || !session) {
@@ -61,25 +58,25 @@ export default function BecomeCreatorPage() {
 
       const json = await res.json();
 
-      if (!json.ok) {
+      if (!json.ok || !json.token) {
         setError(json.error || "Failed to create creator");
         setLoading(false);
         return;
       }
 
       /**
-       * 🔑 Force session refresh
-       * This ensures creatorId / handle is available everywhere
+       * 🔑 CRITICAL:
+       * Re-authenticate with NEW token that contains creatorId
        */
-      await update();
-      await fetch("/api/auth/session");
+      await signIn("credentials", {
+        redirect: false,
+        token: json.token,
+      });
 
       /**
-       * 🔑 Hard refresh dashboard route
-       * Prevents stale session redirecting to /my-access
+       * Now JWT + session are aligned
        */
       router.replace("/dashboard");
-      router.refresh();
     } catch (err) {
       console.error(err);
       setError("Something went wrong");

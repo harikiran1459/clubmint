@@ -19,7 +19,7 @@ export default function DashboardLayout({ children }) {
     }
 
     // 🚨 Creator-only dashboard
-    if (!session.user?.creatorId) {
+    if (!session?.user?.creatorId) {
       router.replace("/my-access");
       return;
     }
