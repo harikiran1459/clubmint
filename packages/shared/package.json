@@ -1,7 +1,8 @@
 {
   "devDependencies": {
     "@types/node": "^25.0.3",
-    "@types/node-telegram-bot-api": "^0.64.13"
+    "@types/node-telegram-bot-api": "^0.64.13",
+    "typescript": "^5.9.3"
   },
   "name": "@clubmint/shared",
   "main": "dist/telegram.js",
