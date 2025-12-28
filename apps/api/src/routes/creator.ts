@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 
 const prisma = new PrismaClient();
 const router = Router();
-
+const JWT_SECRET = process.env.NEXTAUTH_SECRET!;
 /**
  * GET /creators/me
  * Returns creator profile for the logged-in user.

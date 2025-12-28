@@ -2,9 +2,6 @@
 // apps/web/pages/api/auth/[...nextauth].ts
 import NextAuth, { type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-// import { PrismaClient } from "../../../../api/node_modules/@prisma/client";
-
-// const prisma = new PrismaClient();
 
 // ─────────────────────────────────────────────
 //  EXTEND SESSION & JWT TYPES
@@ -50,6 +47,29 @@ export default NextAuth({
       },
 
       async authorize(credentials) {
+
+        if ((credentials as any)?.token) {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/me`,
+      {
+        headers: {
+          Authorization: `Bearer ${(credentials as any).token}`,
+        },
+      }
+    );
+
+    const body = await res.json();
+    if (!body.ok) return null;
+
+    return {
+      id: body.user.id,
+      email: body.user.email,
+      creatorId: body.user.creator?.id ?? null,
+      creatorHandle: body.user.creator?.handle ?? null,
+      accessToken: (credentials as any).token,
+    };
+  }
+
         if (!credentials?.email || !credentials.password) return null;
 
         // Call backend login

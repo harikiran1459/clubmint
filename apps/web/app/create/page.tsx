@@ -40,7 +40,6 @@ export default function BecomeCreatorPage() {
 
     setLoading(true);
     setError("");
-
     try {
       const token = (session?.user as any).accessToken;
 
@@ -69,14 +68,17 @@ export default function BecomeCreatorPage() {
        * Re-authenticate with NEW token that contains creatorId
        */
       await signIn("credentials", {
-        redirect: false,
-        token: json.token,
+        email: session?.user.email,
+  password: undefined,          // ignored
+  token: json.token,            // 👈 fresh backend token
+  redirect: false,
       });
 
       /**
        * Now JWT + session are aligned
        */
       router.replace("/dashboard");
+      router.refresh();
     } catch (err) {
       console.error(err);
       setError("Something went wrong");
