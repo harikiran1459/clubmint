@@ -265,7 +265,7 @@ export async function handleTelegramUpdate(update: any) {
 
     if (msg.chat.type === "private") return;
 
-    const text = msg.text.trim().toUpperCase();
+    const text = msg.text.trim();
     if (!text.startsWith("CLUBMINT-")) return;
 
     const tgGroupId = BigInt(msg.chat.id);
@@ -304,7 +304,7 @@ export async function handleTelegramUpdate(update: any) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: msg.chat.id,
-        user_id: Number(process.env.TELEGRAM_BOT_USER_ID),
+        user_id: Number(process.env.TELEGRAM_BOT_ID),
       }),
     }).then((r) => r.json());
 

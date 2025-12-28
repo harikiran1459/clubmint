@@ -162,7 +162,7 @@ export default function IntegrationsPage() {
         {/* ACTIONS */}
         <div className="flex flex-wrap gap-3">
           <a
-            href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}?startgroup=true`}
+            href={`https://t.me/${process.env.TELEGRAM_BOT_USERNAME}?startgroup=true`}
             target="_blank"
           >
             <button className="auth-btn">Invite Bot to Telegram Group</button>
