@@ -4,7 +4,7 @@ import cron from "node-cron";
 import { PrismaClient } from "@prisma/client";
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
-const { sendTelegramMessage } = require("../../packages/shared/dist/telegram");
+import { sendTelegramMessage } from "../lib/telegram";
 
 const prisma = new PrismaClient();
 

@@ -4,11 +4,12 @@ import IORedis from "ioredis";
 import { PrismaClient } from "@prisma/client";
 
 // shared runtime helpers (compiled JS)
-const {
-  kickFromGroup,
-  sendTelegramMessage,
+import {
   createInviteLink,
-} = require("../../shared/dist/telegram");
+  sendTelegramMessage,
+  kickFromGroup,
+} from "./telegram";
+
 
 const prisma = new PrismaClient();
 

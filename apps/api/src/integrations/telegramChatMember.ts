@@ -2,8 +2,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import fetch from "node-fetch";
-const { kickFromGroup } = require("../../packages/shared/dist/telegram");
-
+import { kickFromGroup } from "../lib/telegram";
 
 
 const prisma = new PrismaClient();
