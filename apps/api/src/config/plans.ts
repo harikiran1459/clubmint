@@ -18,7 +18,7 @@ export const CLUBMINT_PLANS = {
     name: "Starter",
     price: 999,
     commissionPct: 5,
-    razorpayPlanId: "plan_RrzVNj5MyoyfjX",
+    razorpayPlanId: process.env.RAZORPAY_PLAN_STARTER,
     features: {
       telegramGroups: 3,
       products: 3,
@@ -33,7 +33,7 @@ export const CLUBMINT_PLANS = {
     name: "Pro",
     price: 2499,
     commissionPct: 3,
-    razorpayPlanId: "plan_RrzWws0tU3riwK",
+    razorpayPlanId: process.env.RAZORPAY_PLAN_PRO,
     features: {
       telegramGroups: Infinity,
       products: Infinity,
