@@ -11,6 +11,7 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 export async function handleChatMemberUpdate(update: any) {
+  console.log("👤 chat_member update received");
   try {
     const { chat, old_chat_member, new_chat_member } = update.chat_member;
     if (!chat || !new_chat_member?.user) return;

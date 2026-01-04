@@ -13,6 +13,8 @@ const router = express.Router();
  * - ALWAYS be fast
  */
 router.post("/telegram/webhook", async (req, res) => {
+  console.log("📩 Telegram update:", JSON.stringify(req.body));
+
   try {
     // Process update asynchronously
     handleTelegramUpdate(req.body);
