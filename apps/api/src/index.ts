@@ -112,11 +112,4 @@ app.listen(PORT, async () => {
   console.log(`API running at http://localhost:${PORT}`);
 });
 
-if (process.env.RUN_WORKER === "true") {
-  console.log("🚀 Starting worker inside API process");
-
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  require("../../../packages/worker/dist/packages/worker/src/worker.js");
-}
-
 
