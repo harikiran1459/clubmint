@@ -9,89 +9,116 @@ const prisma = new PrismaClient();
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
 const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+async function enforceJoin(chatId: number, userId: number) {
+  const tgGroupId = BigInt(chatId);
+  const tgUserId = BigInt(userId);
 
-export async function handleChatMemberUpdate(update: any) {
-  console.log("👤 chat_member update received");
-  try {
-    const { chat, old_chat_member, new_chat_member } = update.chat_member;
-    if (!chat || !new_chat_member?.user) return;
-    if (new_chat_member.user.is_bot) return;
+  console.log("🔐 Enforcing join:", tgGroupId, tgUserId);
 
-    const joined =
-      ["left", "kicked"].includes(old_chat_member?.status) &&
-      new_chat_member.status === "member";
+  // 1️⃣ Group lookup
+  const group = await prisma.telegramGroup.findUnique({
+    where: { tgGroupId },
+    include: { products: { select: { id: true } } },
+  });
 
-    if (!joined) return;
+  if (!group || !group.isConnected) return;
+  if (group.products.length === 0) return;
 
-    const tgGroupId = BigInt(chat.id);
-    const tgUserId = BigInt(new_chat_member.user.id);
+  // 2️⃣ Telegram user mapping
+  const telegramUser = await prisma.telegramUser.findUnique({
+    where: { tgUserId },
+  });
 
-    // 1️⃣ Find group
-    const group = await prisma.telegramGroup.findUnique({
-      where: { tgGroupId },
-      include: { products: { select: { id: true } } },
-    });
+  if (!telegramUser) {
+    await kickFromGroup(tgGroupId, Number(userId));
+    return;
+  }
 
-    if (!group || !group.isConnected) return;
+  // 3️⃣ Subscription check
+  const hasValidSubscription = await prisma.subscription.findFirst({
+    where: {
+      userId: telegramUser.userId,
+      productId: { in: group.products.map(p => p.id) },
+      status: "active",
+      currentPeriodEnd: { gt: new Date() },
+    },
+  });
 
-    // If no products linked → treat as open group
-    if (group.products.length === 0) return;
+  if (!hasValidSubscription) {
+    await kickFromGroup(tgGroupId, Number(userId));
 
-    // 2️⃣ Resolve Telegram user → app user
-    const telegramUser = await prisma.telegramUser.findUnique({
-      where: { tgUserId },
-    });
-
-    if (!telegramUser) {
-      await kickFromGroup(
-  BigInt(chat.id),
-  Number(new_chat_member.user.id)
-);
-
-      return;
-    }
-
-    // 3️⃣ Check subscription against group products
-    const hasValidSubscription = await prisma.subscription.findFirst({
-      where: {
-        userId: telegramUser.userId,
-        productId: { in: group.products.map(p => p.id) },
-        status: "active",
-        currentPeriodEnd: { gt: new Date() },
+    await prisma.telegramActivityLog.create({
+      data: {
+        creatorId: group.creatorId,
+        groupId: group.id,
+        tgUserId,
+        event: "kick",
+        reason: "no_active_subscription",
       },
     });
 
-    if (!hasValidSubscription) {
-      await kickFromGroup(
-  BigInt(chat.id),
-  Number(new_chat_member.user.id)
-);
+    return;
+  }
 
-      await prisma.telegramActivityLog.create({
-  data: {
-    creatorId: group.creatorId,
-    groupId: group.id,
-    tgUserId,
-    event: "kick",
-    reason: "no_active_subscription",
-  },
-});
+  await prisma.telegramActivityLog.create({
+    data: {
+      creatorId: group.creatorId,
+      groupId: group.id,
+      tgUserId,
+      event: "allowed",
+    },
+  });
+
+  console.log("✅ Allowed:", tgUserId.toString());
+}
+
+
+export async function handleChatMemberUpdate(update: any) {
+  console.log("🔔 Chat member update received");
+  try {
+    // --------------------------------------------------
+    // CASE 1: legacy join event (MOST COMMON)
+    // --------------------------------------------------
+    if (update.message?.new_chat_member || update.message?.new_chat_members) {
+      const chat = update.message.chat;
+      const members =
+        update.message.new_chat_members ??
+        [update.message.new_chat_member];
+
+      for (const member of members) {
+        if (member.is_bot) continue;
+
+        await enforceJoin(chat.id, member.id);
+      }
 
       return;
     }
-    await prisma.telegramActivityLog.create({
-  data: {
-    creatorId: group.creatorId,
-    groupId: group.id,
-    tgUserId,
-    event: "allowed",
-  },
-});
 
+    // --------------------------------------------------
+    // CASE 2: chat_member status update
+    // --------------------------------------------------
+    if (update.chat_member) {
+      const { chat, old_chat_member, new_chat_member } =
+        update.chat_member;
 
-    console.log("✅ Allowed to stay");
+      if (
+        !chat ||
+        !new_chat_member?.user ||
+        new_chat_member.user.is_bot
+      ) {
+        return;
+      }
+
+      const joined =
+        ["left", "kicked"].includes(old_chat_member?.status) &&
+        new_chat_member.status === "member";
+
+      if (!joined) return;
+
+      await enforceJoin(chat.id, new_chat_member.user.id);
+    }
   } catch (err) {
-    console.error("telegramChatMember error:", err);
+    console.error("telegram join enforcement error:", err);
   }
 }
 
