@@ -19,7 +19,36 @@ const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
  */
 export async function handleTelegramUpdate(update: any) {
   try {
-    // 🔥 REAL-TIME ENFORCEMENT FIRST
+    /* =====================================================
+       🔥 REAL-TIME ENFORCEMENT (MOST COMMON JOIN CASE)
+    ===================================================== */
+    if (update.message?.new_chat_members?.length) {
+      const chat = update.message.chat;
+
+      for (const user of update.message.new_chat_members) {
+        if (user.is_bot) continue;
+
+        console.log("👤 New member joined:", chat.id, user.id);
+
+        await handleChatMemberUpdate({
+          chat_member: {
+            chat,
+            old_chat_member: { status: "left" },
+            new_chat_member: {
+              status: "member",
+              user,
+            },
+          },
+        });
+      }
+
+      // IMPORTANT: stop further processing
+      return;
+    }
+
+    /* =====================================================
+       🔁 chat_member update (LESS COMMON)
+    ===================================================== */
     if (update.chat_member) {
       await handleChatMemberUpdate(update);
       return;

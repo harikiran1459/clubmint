@@ -91,6 +91,7 @@ export async function kickFromGroup(
     });
 
     const json = (await res.json()) as any;
+    console.log("🚫 banChatMember response:", json);
 
     if (!json.ok) {
       if (json.error_code === 400 || json.error_code === 403) {
